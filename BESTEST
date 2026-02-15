@@ -67,7 +67,8 @@ HeaderBar.Position = UDim2.fromOffset(5, 5)
 HeaderBar.BackgroundTransparency = 1
 
 local Title = Instance.new("TextLabel", HeaderBar)
-Title.Size = UDim2.new(1, -90, 1, 0)
+Title.Size = UDim2.fromOffset(120, 40) -- fixed width
+Title.Position = UDim2.fromOffset(0, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "Cat's Explorer"
 Title.Font = Enum.Font.GothamBold
@@ -76,11 +77,18 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.TextColor3 = Color3.fromRGB(255,255,255)
 
 local HeaderPath = Instance.new("TextLabel", HeaderBar)
-HeaderPath.Size = UDim2.new(1, -90, 1, 0)
 HeaderPath.BackgroundTransparency = 1
-HeaderPath.TextXAlignment = Enum.TextXAlignment.Right
+HeaderPath.TextXAlignment = Enum.TextXAlignment.Left
 HeaderPath.TextColor3 = Color3.fromRGB(200,200,200)
 HeaderPath.TextSize = 12
+
+-- Dynamically adjust path size/position to avoid overlapping title
+local function updateHeaderPath()
+	local titleWidth = Title.TextBounds.X
+	local padding = 10
+	HeaderPath.Position = UDim2.fromOffset(titleWidth + padding, 0)
+	HeaderPath.Size = UDim2.new(1, -titleWidth - padding, 1, 0)
+end
 
 local WindowButtons = Instance.new("Frame", HeaderBar)
 WindowButtons.Size = UDim2.fromOffset(70, 30)
@@ -230,8 +238,9 @@ local function refresh()
 	end
 
 	HeaderPath.Text = "Explorer → "..currentInstance:GetFullName()
-	local query = SearchBox.Text:lower()
+	updateHeaderPath() -- <-- dynamically resize to avoid overlap
 
+	local query = SearchBox.Text:lower()
 	for _,child in ipairs(currentInstance:GetChildren()) do
 		if query=="" or similarity(child.Name,query)>0.45 then
 			local btn = Instance.new("TextButton", Scroll)
@@ -300,14 +309,12 @@ end)
 -- ================= Navigation Buttons (Fixed) =================
 Back.MouseButton1Click:Connect(function()
 	if #history > 0 then
-		-- Inside a folder
 		currentInstance = table.remove(history)
 		SearchBox.Text=""
 		refresh()
 	else
-		-- At root, go to previous root
 		history = {}
-		currentRootIndex = (currentRootIndex - 2) % #ROOTS + 1 -- wrap-around
+		currentRootIndex = (currentRootIndex - 2) % #ROOTS + 1
 		currentInstance = ROOTS[currentRootIndex]
 		SearchBox.Text=""
 		refresh()
