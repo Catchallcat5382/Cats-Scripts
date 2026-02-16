@@ -1,8 +1,6 @@
 -- =========================================================
--- Cat's Explorer (ULTIMATE MERGED BUILD – FINAL)
--- Teleport • LoopGoto • Orbit • Fly • Invis • ESP
--- Rejoin • Refresh • Server Hop • Chat Commands
--- Tweened UI • Sounds • Minimize • RightShift
+-- Cat's Explorer (ULTIMATE MERGED BUILD – TRUE FINAL)
+-- EVERYTHING INCLUDED • SYNCED • CLEAN
 -- =========================================================
 
 -- ================= SERVICES =================
@@ -146,13 +144,9 @@ Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarImageTransparency = 0.5
 local Layout = Instance.new("UIListLayout", Scroll)
 
-local loopTarget
-local looping = false
-local orbitTarget
-local orbiting = false
-local orbitAngle = 0
-local orbitRadius = 6
-local orbitSpeed = 2
+local loopTarget, looping = nil, false
+local orbitTarget, orbiting = nil, false
+local orbitAngle, orbitRadius, orbitSpeed = 0, 6, 2
 
 local function teleportTo(p)
     if LocalPlayer.Character and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -161,9 +155,7 @@ local function teleportTo(p)
 end
 
 RunService.Heartbeat:Connect(function(dt)
-    if looping and loopTarget then
-        teleportTo(loopTarget)
-    end
+    if looping and loopTarget then teleportTo(loopTarget) end
     if orbiting and orbitTarget and orbitTarget.Character then
         local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
         local my = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -233,37 +225,25 @@ Players.PlayerRemoving:Connect(refreshPlayers)
 refreshPlayers()
 
 -- =========================================================
--- SMOOTH SAFE FLY (MM2-STYLE)
+-- FLY (SAFE + SPEED CONTROL)
 -- =========================================================
-local flying = false
-local flyConn
+local flying, flyConn = false, nil
 local bv, bg
-local flySpeed = 40
-local accel = 6
+local flySpeed, accel = 40, 6
 local currentVel = Vector3.zero
 
 local function stopFly()
     flying = false
-
-    if flyConn then
-        flyConn:Disconnect()
-        flyConn = nil
-    end
-
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-
+    if flyConn then flyConn:Disconnect() flyConn = nil end
     if bv then bv:Destroy() bv = nil end
     if bg then bg:Destroy() bg = nil end
     currentVel = Vector3.zero
-
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if hum then hum.PlatformStand = false end
 end
 
 local function startFly()
     if flying then return end
-
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -272,46 +252,32 @@ local function startFly()
     flying = true
     hum.PlatformStand = true
 
-    bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    bv.Velocity = Vector3.zero
-    bv.Parent = hrp
+    bv = Instance.new("BodyVelocity", hrp)
+    bv.MaxForce = Vector3.new(1e5,1e5,1e5)
 
-    bg = Instance.new("BodyGyro")
-    bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    bg = Instance.new("BodyGyro", hrp)
+    bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
     bg.P = 9000
-    bg.CFrame = hrp.CFrame
-    bg.Parent = hrp
 
     flyConn = RunService.RenderStepped:Connect(function(dt)
-        if not flying then return end
-
         local cam = workspace.CurrentCamera
         local moveDir = Vector3.zero
-
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
-
-        if moveDir.Magnitude > 0 then
-            moveDir = moveDir.Unit * flySpeed
-        end
-
+        if moveDir.Magnitude > 0 then moveDir = moveDir.Unit * flySpeed end
         currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
         bv.Velocity = currentVel
         bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
     end)
 end
 
--- safety cleanup
 LocalPlayer.CharacterAdded:Connect(stopFly)
 
--- =========================================================
--- FLY UI BUTTONS
--- =========================================================
+-- ================= FLY UI =================
 local FlyBtn = Instance.new("TextButton", FlyFrame)
 FlyBtn.Size = UDim2.new(1,0,0,40)
 FlyBtn.Text = "Fly"
@@ -320,20 +286,28 @@ FlyBtn.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", FlyBtn)
 
 FlyBtn.MouseButton1Click:Connect(function()
-    if flying then
-        stopFly()
-        FlyBtn.Text = "Fly"
-    else
-        startFly()
-        FlyBtn.Text = "Unfly"
-    end
+    if flying then stopFly(); FlyBtn.Text = "Fly"
+    else startFly(); FlyBtn.Text = "Unfly" end
+end)
+
+local SpeedBox = Instance.new("TextBox", FlyFrame)
+SpeedBox.Position = UDim2.fromOffset(0,50)
+SpeedBox.Size = UDim2.new(1,0,0,30)
+SpeedBox.Text = tostring(flySpeed)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(45,45,45)
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", SpeedBox)
+
+SpeedBox.FocusLost:Connect(function()
+    local n = tonumber(SpeedBox.Text)
+    if n then flySpeed = math.clamp(n,10,300) end
+    SpeedBox.Text = tostring(flySpeed)
 end)
 
 -- =========================================================
--- MISC (FLING ME / ESP / SERVER)
+-- MISC (FLING / ESP / SERVER)
 -- =========================================================
-local flingme = false
-local savedTransparency = {}
+local flingme, savedTransparency = false, {}
 
 local function setFlingMe(state)
     local c = LocalPlayer.Character
@@ -352,6 +326,25 @@ local function setFlingMe(state)
     end
 end
 
+local espEnabled, esp = false, {}
+
+local function clearESP()
+    for _,v in pairs(esp) do if v then v:Destroy() end end
+    table.clear(esp)
+end
+
+local function createESP(p)
+    if p == LocalPlayer or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee = p.Character.HumanoidRootPart
+    box.Size = Vector3.new(4,6,4)
+    box.AlwaysOnTop = true
+    box.Color3 = Color3.fromRGB(255,0,0)
+    box.Transparency = 0.5
+    box.Parent = CoreGui
+    esp[p] = box
+end
+
 local function mkBtn(txt,y,cb)
     local b = Instance.new("TextButton", MiscFrame)
     b.Size = UDim2.new(1,0,0,40)
@@ -367,28 +360,6 @@ mkBtn("Toggle Fling Me",0,function()
     flingme = not flingme
     setFlingMe(flingme)
 end)
-
--- ESP
-local espEnabled = false
-local esp = {}
-
-local function clearESP()
-    for _,v in pairs(esp) do if v then v:Destroy() end end
-    table.clear(esp)
-end
-
-local function createESP(p)
-    if p == LocalPlayer or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
-    local box = Instance.new("BoxHandleAdornment")
-    box.Adornee = p.Character.HumanoidRootPart
-    box.Size = Vector3.new(4,6,4)
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Color3 = Color3.fromRGB(255,0,0)
-    box.Transparency = 0.5
-    box.Parent = CoreGui
-    esp[p] = box
-end
 
 mkBtn("Toggle ESP",50,function()
     espEnabled = not espEnabled
@@ -432,10 +403,11 @@ MiscTab.MouseButton1Click:Connect(function()
 end)
 
 -- =========================================================
--- MINIMIZE / RIGHT SHIFT / CLOSE (FIXED + NOTIF X)
+-- MINIMIZE / CLOSE / RIGHTSHIFT
 -- =========================================================
 local uiVisible = true
 
+-- ================= HIDE UI NOTIFICATION =================
 local Notification = Instance.new("Frame", ScreenGui)
 Notification.Size = UDim2.fromOffset(260,70)
 Notification.Position = UDim2.fromScale(0.7,0.8)
@@ -445,11 +417,12 @@ Instance.new("UICorner", Notification)
 
 local NotifText = Instance.new("TextLabel", Notification)
 NotifText.Size = UDim2.new(1,-40,1,-10)
-NotifText.Position = UDim2.fromOffset(5,5)
+NotifText.Position = UDim2.fromOffset(8,5)
 NotifText.BackgroundTransparency = 1
-NotifText.Text = "UI hidden\nPress Right Shift or Left Alt"
+NotifText.Text = "UI hidden\nPress RightShift or Left Alt"
 NotifText.TextScaled = true
 NotifText.TextColor3 = Color3.new(1,1,1)
+NotifText.Font = Enum.Font.GothamBold
 
 local NotifClose = Instance.new("TextButton", Notification)
 NotifClose.Size = UDim2.fromOffset(24,24)
@@ -465,33 +438,37 @@ NotifClose.MouseButton1Click:Connect(function()
     Notification.Visible = false
 end)
 
-local function hideUI()
+MinimizeBtn.MouseButton1Click:Connect(function()
     if not uiVisible then return end
     uiVisible = false
     play(MinimizeSound)
     MainFrame.Visible = false
     Notification.Visible = true
     play(NotifSound)
-end
+end)
 
-local function showUI()
-    if uiVisible then return end
-    uiVisible = true
-    Notification.Visible = false
-    MainFrame.Visible = true
-end
-
-MinimizeBtn.MouseButton1Click:Connect(hideUI)
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+CloseBtn.MouseButton1Click:Connect(function()
+    stopFly()
+    looping, orbiting, flingme, espEnabled = false,false,false,false
+    clearESP()
+    ScreenGui:Destroy()
+end)
 
 UserInputService.InputBegan:Connect(function(i,gp)
-    if not gp and i.KeyCode == Enum.KeyCode.RightShift or i.KeyCode == Enum.KeyCode.LeftAlt then
-        if uiVisible then hideUI() else showUI() end
+    if gp then return end
+    if i.KeyCode == Enum.KeyCode.RightShift or i.KeyCode == Enum.KeyCode.LeftAlt then
+        uiVisible = not uiVisible
+        MainFrame.Visible = uiVisible
+        Notification.Visible = not uiVisible
+        if not uiVisible then
+            play(MinimizeSound)
+            play(NotifSound)
+        end
     end
 end)
 
 -- =========================================================
--- CHAT COMMANDS
+-- CHAT COMMANDS (FULLY SYNCED)
 -- =========================================================
 local function findPlayerByName(partial)
     partial = partial:lower()
@@ -503,29 +480,25 @@ local function findPlayerByName(partial)
 end
 
 LocalPlayer.Chatted:Connect(function(msg)
-    local args = msg:lower():split(" ")
-    local cmd = args[1]
+    local a = msg:lower():split(" ")
 
-    if cmd == "!fly" then fly() end
-    if cmd == "!unfly" then unfly() end
-    if cmd == "!unloop" then looping = false end
-
-    if cmd == "!orbit" and args[2] then
-        local target = findPlayerByName(args[2])
-        if target then orbitTarget = target; orbiting = true end
+    if a[1] == "!fly" then
+        if a[2] then
+            local n = tonumber(a[2])
+            if n then flySpeed = math.clamp(n,10,300); SpeedBox.Text = flySpeed end
+        end
+        startFly(); FlyBtn.Text = "Unfly"
     end
 
-    if cmd == "!unorbit" then orbiting = false end
-	if cmd == "!flingme" then flingme = true; setFlingMe(true) end
-	if cmd == "!unflingme" then flingme = false; setFlingMe(false) end
-
-    if cmd == "!esp" then
-        espEnabled = true
-        clearESP()
-        for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
-    end
-
-    if cmd == "!unesp" then espEnabled = false; clearESP() end
-    if cmd == "!rejoin" then TeleportService:Teleport(game.PlaceId, LocalPlayer) end
-    if cmd == "!refresh" and LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
+    if a[1] == "!unfly" then stopFly(); FlyBtn.Text = "Fly" end
+    if a[1] == "!loop" and a[2] then loopTarget = findPlayerByName(a[2]); looping = true end
+    if a[1] == "!unloop" then looping = false end
+    if a[1] == "!orbit" and a[2] then orbitTarget = findPlayerByName(a[2]); orbiting = true end
+    if a[1] == "!unorbit" then orbiting = false end
+    if a[1] == "!flingme" then flingme = true; setFlingMe(true) end
+    if a[1] == "!unflingme" then flingme = false; setFlingMe(false) end
+    if a[1] == "!esp" then espEnabled = true; clearESP(); for _,p in ipairs(Players:GetPlayers()) do createESP(p) end end
+    if a[1] == "!unesp" then espEnabled = false; clearESP() end
+    if a[1] == "!rejoin" then TeleportService:Teleport(game.PlaceId, LocalPlayer) end
+    if a[1] == "!refresh" and LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
 end)
