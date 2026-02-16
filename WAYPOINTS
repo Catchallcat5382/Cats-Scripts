@@ -1,0 +1,247 @@
+-- =====================================================
+-- Multi-Game Waypoint Teleporter UI
+-- Tabs • Search • Chat Cmd • Minimize • Notifications
+-- =====================================================
+
+-- ================= SERVICES =================
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local SoundService = game:GetService("SoundService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ================= CLEANUP =================
+pcall(function()
+    CoreGui:FindFirstChild("WaypointUI"):Destroy()
+end)
+
+-- ================= WAYPOINT GROUPS =================
+local WaypointGroups = {
+
+    ["Write a letter"] = {
+        ["Pink Room"] = Vector3.new(-1536.202, 4.615, -661.972),
+        ["Gas"] = Vector3.new(-574.675, 21.639, 230.089),
+        ["Library"] = Vector3.new(-1458.560, 4.350, -1132.884),
+        ["Spawn"] = Vector3.new(-68.582, 17.000, 128.466),
+        ["Train"] = Vector3.new(-138.774, -5.799, 121.579),
+        ["Pink Secret"] = Vector3.new(-347.290, -8.850, 26.372),
+        ["Dark Room"] = Vector3.new(-25.572, 5.000, 108.419),
+        ["Fish"] = Vector3.new(-913.398, 15.203, -44.300),
+        ["House Outside"] = Vector3.new(-360.143, 116.063, 1240.900),
+        ["House Inside"] = Vector3.new(-369.217, 116.063, 1260.828),
+        ["Cabin"] = Vector3.new(-645.015, 23.922, 1255.114),
+        ["Snow"] = Vector3.new(-655.399, 30.718, 1155.211),
+        ["Secret Home"] = Vector3.new(-637.167, 10.000, 1760.611),
+        ["Pouch"] = Vector3.new(-456.296, 13.152, 2388.667),
+        ["Outside Snow"] = Vector3.new(-421.000, 12.686, 2615.000),
+        ["Pink Room Secret"] = Vector3.new(-1551.195, 17.620, -680.175)
+    },
+
+    -- 🔹 ADD MORE GAMES LIKE THIS 🔹
+    -- ["Another Game"] = {
+    --     ["Spawn"] = Vector3.new(0,5,0),
+    -- }
+}
+
+-- ================= HELPERS =================
+local function notify(text)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "Waypoint",
+        Text = text,
+        Duration = 2
+    })
+end
+
+local function teleportTo(pos)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = CFrame.new(pos)
+    end
+end
+
+-- ================= UI =================
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "WaypointUI"
+ScreenGui.ResetOnSpawn = false
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.fromOffset(380, 460)
+Frame.Position = UDim2.fromScale(0.5, 0.2)
+Frame.AnchorPoint = Vector2.new(0.5, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(28,28,28)
+Frame.Active = true
+Frame.Draggable = true
+Instance.new("UICorner", Frame)
+
+-- ================= TOP BAR =================
+local Title = Instance.new("TextLabel", Frame)
+Title.Size = UDim2.new(1, -70, 0, 32)
+Title.Position = UDim2.fromOffset(10, 4)
+Title.BackgroundTransparency = 1
+Title.Text = "Waypoints"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local MinBtn = Instance.new("TextButton", Frame)
+MinBtn.Size = UDim2.fromOffset(26,26)
+MinBtn.Position = UDim2.new(1,-60,0,4)
+MinBtn.Text = "–"
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 18
+MinBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+MinBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", MinBtn)
+
+local CloseBtn = Instance.new("TextButton", Frame)
+CloseBtn.Size = UDim2.fromOffset(26,26)
+CloseBtn.Position = UDim2.new(1,-30,0,4)
+CloseBtn.Text = "X"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.BackgroundColor3 = Color3.fromRGB(130,40,40)
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", CloseBtn)
+
+-- ================= SEARCH =================
+local TypeSound = Instance.new("Sound", SoundService)
+TypeSound.SoundId = "rbxassetid://9118828567"
+TypeSound.Volume = 0.4
+
+local Search = Instance.new("TextBox", Frame)
+Search.Size = UDim2.new(1, -20, 0, 28)
+Search.Position = UDim2.fromOffset(10, 42)
+Search.PlaceholderText = "Search waypoints..."
+Search.Font = Enum.Font.Gotham
+Search.TextSize = 14
+Search.TextColor3 = Color3.new(1,1,1)
+Search.BackgroundColor3 = Color3.fromRGB(40,40,40)
+Search.ClearTextOnFocus = false
+Instance.new("UICorner", Search)
+
+Search:GetPropertyChangedSignal("Text"):Connect(function()
+    TypeSound:Play()
+end)
+
+-- ================= TAB BAR =================
+local TabBar = Instance.new("Frame", Frame)
+TabBar.Position = UDim2.fromOffset(10, 76)
+TabBar.Size = UDim2.new(1, -20, 28)
+TabBar.BackgroundTransparency = 1
+
+local TabLayout = Instance.new("UIListLayout", TabBar)
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.Padding = UDim.new(0,6)
+
+-- ================= LIST =================
+local List = Instance.new("ScrollingFrame", Frame)
+List.Position = UDim2.fromOffset(10, 112)
+List.Size = UDim2.new(1, -20, 1, -122)
+List.ScrollBarImageTransparency = 0.4
+List.BackgroundTransparency = 1
+List.CanvasSize = UDim2.new(0,0,0,0)
+
+local Layout = Instance.new("UIListLayout", List)
+Layout.Padding = UDim.new(0,6)
+
+-- ================= TAB SYSTEM =================
+local activeGroup
+local buttons = {}
+
+local function clearList()
+    for _, v in ipairs(List:GetChildren()) do
+        if v:IsA("TextButton") then
+            v:Destroy()
+        end
+    end
+    buttons = {}
+end
+
+local function loadGroup(groupName)
+    clearList()
+    activeGroup = groupName
+
+    local count = 0
+    for name, pos in pairs(WaypointGroups[groupName]) do
+        count += 1
+
+        local btn = Instance.new("TextButton", List)
+        btn.Size = UDim2.new(1, 0, 0, 32)
+        btn.Text = name
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 14
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+        Instance.new("UICorner", btn)
+
+        btn.MouseButton1Click:Connect(function()
+            teleportTo(pos)
+            notify("Teleported to " .. name)
+        end)
+
+        buttons[name:lower()] = btn
+    end
+
+    List.CanvasSize = UDim2.new(0,0,0,count * 38)
+end
+
+-- ================= CREATE TABS =================
+for groupName in pairs(WaypointGroups) do
+    local tab = Instance.new("TextButton", TabBar)
+    tab.Size = UDim2.fromOffset(120, 28)
+    tab.Text = groupName
+    tab.Font = Enum.Font.Gotham
+    tab.TextSize = 13
+    tab.TextColor3 = Color3.new(1,1,1)
+    tab.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Instance.new("UICorner", tab)
+
+    tab.MouseButton1Click:Connect(function()
+        loadGroup(groupName)
+    end)
+end
+
+-- Load first tab
+loadGroup(next(WaypointGroups))
+
+-- ================= SEARCH FILTER =================
+Search:GetPropertyChangedSignal("Text"):Connect(function()
+    local q = Search.Text:lower()
+    for name, btn in pairs(buttons) do
+        btn.Visible = q == "" or name:find(q, 1, true)
+    end
+end)
+
+-- ================= CHAT COMMAND =================
+LocalPlayer.Chatted:Connect(function(msg)
+    local cmd, rest = msg:lower():match("^!(%S+)%s*(.*)")
+    if cmd == "waypoint" and rest ~= "" then
+        for _, group in pairs(WaypointGroups) do
+            for name, pos in pairs(group) do
+                if name:lower() == rest then
+                    teleportTo(pos)
+                    notify("Teleported to " .. name)
+                    return
+                end
+            end
+        end
+        notify("Waypoint not found")
+    end
+end)
+
+-- ================= MINIMIZE =================
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    TabBar.Visible = not minimized
+    List.Visible = not minimized
+    Search.Visible = not minimized
+    Frame.Size = minimized and UDim2.fromOffset(380, 42) or UDim2.fromOffset(380, 460)
+end)
+
+-- ================= CLOSE =================
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
