@@ -1,0 +1,505 @@
+-- =========================================================
+-- Cat's MM2 Explorer (ACTUAL FINAL COMBINED)
+-- INVIS REMOVED — EVERYTHING ELSE KEPT
+-- =========================================================
+
+-- ================= SERVICES =================
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+pcall(function()
+    CoreGui:FindFirstChild("CatsMM2Explorer"):Destroy()
+end)
+
+-- ================= GUI ROOT =================
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "CatsMM2Explorer"
+ScreenGui.ResetOnSpawn = false
+
+-- ================= MAIN =================
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.fromOffset(380,460)
+Main.Position = UDim2.fromScale(0.6,0.25)
+Main.BackgroundColor3 = Color3.fromRGB(20,20,20)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main)
+Instance.new("UIStroke", Main).Color = Color3.fromRGB(90,90,90)
+
+local uiVisible = true
+
+-- ================= HEADER =================
+local Header = Instance.new("Frame", Main)
+Header.Size = UDim2.new(1,0,0,38)
+Header.BackgroundTransparency = 1
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1,-80,1,0)
+Title.Position = UDim2.fromOffset(10,0)
+Title.BackgroundTransparency = 1
+Title.Text = "Cat's MM2 Explorer"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextColor3 = Color3.new(1,1,1)
+
+local Btns = Instance.new("Frame", Header)
+Btns.Size = UDim2.fromOffset(70,30)
+Btns.Position = UDim2.new(1,-75,0.5,-15)
+Btns.BackgroundTransparency = 1
+
+local BL = Instance.new("UIListLayout", Btns)
+BL.FillDirection = Enum.FillDirection.Horizontal
+BL.HorizontalAlignment = Enum.HorizontalAlignment.Right
+BL.VerticalAlignment = Enum.VerticalAlignment.Center
+BL.Padding = UDim.new(0,6)
+
+local MinBtn = Instance.new("TextButton", Btns)
+MinBtn.Size = UDim2.fromOffset(30,30)
+MinBtn.Text = "–"
+MinBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+MinBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", MinBtn)
+
+local CloseBtn = MinBtn:Clone()
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(120,40,40)
+CloseBtn.Parent = Btns
+
+-- ================= NOTIFICATION =================
+local Notif = Instance.new("Frame", ScreenGui)
+Notif.Size = UDim2.fromOffset(260,70)
+Notif.Position = UDim2.fromScale(-0.4,0.85)
+Notif.BackgroundColor3 = Color3.fromRGB(25,25,25)
+Notif.Visible = false
+Instance.new("UICorner", Notif)
+
+local NText = Instance.new("TextLabel", Notif)
+NText.Size = UDim2.new(1,-40,1,-10)
+NText.Position = UDim2.fromOffset(10,5)
+NText.BackgroundTransparency = 1
+NText.TextWrapped = true
+NText.TextScaled = true
+NText.TextColor3 = Color3.fromRGB(230,230,230)
+NText.Text = "UI hidden\nPress Right Alt to reopen"
+
+local NClose = Instance.new("TextButton", Notif)
+NClose.Size = UDim2.fromOffset(24,24)
+NClose.Position = UDim2.fromOffset(230,5)
+NClose.Text = "X"
+NClose.BackgroundColor3 = Color3.fromRGB(100,40,40)
+NClose.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", NClose)
+
+-- ================= TABS =================
+local Tabs = Instance.new("Frame", Main)
+Tabs.Position = UDim2.fromOffset(10,45)
+Tabs.Size = UDim2.new(1,-20,0,30)
+Tabs.BackgroundTransparency = 1
+
+local function tab(txt,x)
+    local b = Instance.new("TextButton", Tabs)
+    b.Size = UDim2.new(0.25,0,1,0)
+    b.Position = UDim2.new(x,0,0,0)
+    b.Text = txt
+    b.BackgroundColor3 = Color3.fromRGB(45,45,45)
+    b.TextColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", b)
+    return b
+end
+
+local TP_Tab   = tab("Teleport",0)
+local Role_Tab = tab("Roles",0.25)
+local Move_Tab = tab("Move",0.5)
+local Misc_Tab = tab("Misc",0.75)
+
+local function page()
+    local f = Instance.new("Frame", Main)
+    f.Position = UDim2.fromOffset(10,85)
+    f.Size = UDim2.new(1,-20,1,-95)
+    f.BackgroundTransparency = 1
+    return f
+end
+
+local TP_Page   = page()
+local Role_Page = page(); Role_Page.Visible=false
+local Move_Page = page(); Move_Page.Visible=false
+local Misc_Page = page(); Misc_Page.Visible=false
+
+-- =========================================================
+-- TELEPORT / LOOP / ORBIT
+-- =========================================================
+local TP_Search = Instance.new("TextBox", TP_Page)
+TP_Search.Size = UDim2.new(1,0,0,28)
+TP_Search.PlaceholderText = "Search player..."
+TP_Search.BackgroundColor3 = Color3.fromRGB(35,35,35)
+TP_Search.TextColor3 = Color3.new(1,1,1)
+TP_Search.ClearTextOnFocus = false
+Instance.new("UICorner", TP_Search)
+
+local TP_List = Instance.new("ScrollingFrame", TP_Page)
+TP_List.Position = UDim2.fromOffset(0,35)
+TP_List.Size = UDim2.new(1,0,1,-110)
+TP_List.CanvasSize = UDim2.new()
+TP_List.ScrollBarImageTransparency = 0.4
+TP_List.BackgroundTransparency = 1
+local TP_L = Instance.new("UIListLayout", TP_List)
+
+local loopTarget, orbitTarget
+local looping, orbiting = false,false
+local angle = 0
+
+local function tpTo(p)
+    if LocalPlayer.Character and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame =
+            p.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3)
+    end
+end
+
+RunService.Heartbeat:Connect(function(dt)
+    if looping and loopTarget then tpTo(loopTarget) end
+    if orbiting and orbitTarget and orbitTarget.Character then
+        local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
+        local my = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and my then
+            angle += dt*2
+            my.CFrame = CFrame.new(
+                hrp.Position + Vector3.new(math.cos(angle)*6,2,math.sin(angle)*6),
+                hrp.Position
+            )
+        end
+    end
+end)
+
+local function refreshTP()
+    for _,v in ipairs(TP_List:GetChildren()) do
+        if v:IsA("TextButton") then v:Destroy() end
+    end
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Name:lower():find(TP_Search.Text:lower()) then
+            local b = Instance.new("TextButton", TP_List)
+            b.Size = UDim2.new(1,0,0,28)
+            b.Text = p.Name
+            b.BackgroundColor3 = Color3.fromRGB(45,45,45)
+            b.TextColor3 = Color3.new(1,1,1)
+            Instance.new("UICorner", b)
+            b.MouseButton1Click:Connect(function()
+                tpTo(p)
+                loopTarget = p
+                orbitTarget = p
+            end)
+        end
+    end
+    TP_List.CanvasSize = UDim2.fromOffset(0,TP_L.AbsoluteContentSize.Y+10)
+end
+
+TP_Search:GetPropertyChangedSignal("Text"):Connect(refreshTP)
+Players.PlayerAdded:Connect(refreshTP)
+Players.PlayerRemoving:Connect(refreshTP)
+refreshTP()
+
+local LoopBtn = Instance.new("TextButton", TP_Page)
+LoopBtn.Size = UDim2.new(1,0,0,28)
+LoopBtn.Position = UDim2.new(0,0,1,-65)
+LoopBtn.Text = "Loop Goto"
+LoopBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+LoopBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", LoopBtn)
+
+LoopBtn.MouseButton1Click:Connect(function()
+    looping = not looping
+    LoopBtn.Text = looping and "Stop Loop" or "Loop Goto"
+end)
+
+local OrbitBtn = LoopBtn:Clone()
+OrbitBtn.Position = UDim2.new(0,0,1,-32)
+OrbitBtn.Text = "Orbit"
+OrbitBtn.Parent = TP_Page
+OrbitBtn.MouseButton1Click:Connect(function()
+    orbiting = not orbiting
+    OrbitBtn.Text = orbiting and "Stop Orbit" or "Orbit"
+end)
+
+-- =========================================================
+-- ROLE ESP + ARROWS (AUTO-UPDATING, NO LEAKS)
+-- =========================================================
+local function getRole(p)
+    for _,c in ipairs({p.Backpack, p.Character}) do
+        if c then
+            for _,v in ipairs(c:GetChildren()) do
+                if v:IsA("Tool") then
+                    local n = v.Name:lower()
+                    if n:find("knife") then return "Murderer" end
+                    if n:find("gun") then return "Sheriff" end
+                end
+            end
+        end
+    end
+    return "Innocent"
+end
+
+local colors = {
+    Innocent = Color3.fromRGB(0,255,0),
+    Murderer = Color3.fromRGB(255,0,0),
+    Sheriff  = Color3.fromRGB(0,150,255)
+}
+
+local roleESP = false
+local arrowESP = false
+local highlights = {}
+local arrows = {}
+
+local function clearESP()
+    for _,h in pairs(highlights) do h:Destroy() end
+    table.clear(highlights)
+end
+
+local function clearArrows()
+    for _,a in pairs(arrows) do a:Destroy() end
+    table.clear(arrows)
+end
+
+RunService.RenderStepped:Connect(function()
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+
+            -- ===== ROLE ESP =====
+            if roleESP then
+                if not highlights[p] then
+                    local h = Instance.new("Highlight")
+                    h.Parent = CoreGui
+                    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    h.FillTransparency = 0.5
+                    highlights[p] = h
+                end
+                highlights[p].Adornee = p.Character
+                highlights[p].FillColor = colors[getRole(p)]
+            end
+
+            -- ===== ARROWS =====
+            if arrowESP then
+                if not arrows[p] then
+                    local gui = Instance.new("BillboardGui", CoreGui)
+                    gui.Size = UDim2.fromOffset(40,40)
+                    gui.AlwaysOnTop = true
+
+                    local img = Instance.new("ImageLabel", gui)
+                    img.Name = "Arrow"
+                    img.Size = UDim2.fromScale(1,1)
+                    img.BackgroundTransparency = 1
+                    img.Image = "rbxassetid://6031094678"
+
+                    arrows[p] = gui
+                end
+
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    arrows[p].Adornee = hrp
+                    arrows[p].Enabled = true
+                    arrows[p].Arrow.ImageColor3 = colors[getRole(p)]
+                else
+                    arrows[p].Enabled = false
+                end
+            end
+        end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if highlights[p] then highlights[p]:Destroy() end
+    if arrows[p] then arrows[p]:Destroy() end
+    highlights[p], arrows[p] = nil, nil
+end)
+
+local ESPBtn=Instance.new("TextButton",Role_Page)
+ESPBtn.Size=UDim2.new(1,0,0,36)
+ESPBtn.Text="Toggle Role ESP"
+ESPBtn.BackgroundColor3=Color3.fromRGB(60,60,60)
+ESPBtn.TextColor3=Color3.new(1,1,1)
+Instance.new("UICorner",ESPBtn)
+
+ESPBtn.MouseButton1Click:Connect(function()
+    roleESP=not roleESP
+    if roleESP then applyESP() else clearESP() end
+end)
+
+local ArrowBtn=ESPBtn:Clone()
+ArrowBtn.Position=UDim2.fromOffset(0,45)
+ArrowBtn.Text="Toggle Role Arrows"
+ArrowBtn.Parent=Role_Page
+
+ArrowBtn.MouseButton1Click:Connect(function()
+    arrowESP=not arrowESP
+    if arrowESP then applyArrows() else clearArrows() end
+end)
+
+-- =========================================================
+-- SMOOTH SAFE FLY (MM2 FRIENDLY)
+-- =========================================================
+local flying = false
+local flyConn
+local bv, bg
+local flySpeed = 40          -- safe speed (don’t go crazy)
+local accel = 6              -- smoothing factor
+local currentVel = Vector3.zero
+
+local FlyBtn = Instance.new("TextButton", Move_Page)
+FlyBtn.Size = UDim2.new(1,0,0,40)
+FlyBtn.Text = "Fly"
+FlyBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+FlyBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", FlyBtn)
+
+local function stopFly()
+    flying = false
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if bv then bv:Destroy() bv = nil end
+    if bg then bg:Destroy() bg = nil end
+    currentVel = Vector3.zero
+
+    if hum then hum.PlatformStand = false end
+    FlyBtn.Text = "Fly"
+end
+
+FlyBtn.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not (char and hrp and hum) then return end
+
+    flying = true
+    FlyBtn.Text = "Unfly"
+    hum.PlatformStand = true
+
+    -- Body movers (smooth + safe)
+    bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bv.Velocity = Vector3.zero
+    bv.Parent = hrp
+
+    bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    bg.P = 9000
+    bg.CFrame = hrp.CFrame
+    bg.Parent = hrp
+
+    flyConn = RunService.RenderStepped:Connect(function(dt)
+        if not flying then return end
+
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.zero
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
+
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit * flySpeed
+        end
+
+        -- smooth acceleration (prevents invalid position kicks)
+        currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
+        bv.Velocity = currentVel
+
+        -- face camera direction (smooth)
+        bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+    end)
+end)
+
+-- safety cleanup on death
+LocalPlayer.CharacterAdded:Connect(function()
+    stopFly()
+end)
+
+-- =========================================================
+-- MISC (NO INVIS)
+-- =========================================================
+local function miscBtn(txt,y,cb)
+    local b=Instance.new("TextButton",Misc_Page)
+    b.Size=UDim2.new(1,0,0,36)
+    b.Position=UDim2.fromOffset(0,y)
+    b.Text=txt
+    b.BackgroundColor3=Color3.fromRGB(60,60,60)
+    b.TextColor3=Color3.new(1,1,1)
+    Instance.new("UICorner",b)
+    b.MouseButton1Click:Connect(cb)
+end
+
+miscBtn("Rejoin",0,function()
+    TeleportService:Teleport(game.PlaceId,LocalPlayer)
+end)
+
+miscBtn("Server Hop",45,function()
+    local data=HttpService:JSONDecode(
+        game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100")
+    )
+    for _,v in ipairs(data.data) do
+        if v.playing<v.maxPlayers then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId,v.id,LocalPlayer)
+            break
+        end
+    end
+end)
+
+-- =========================================================
+-- TAB SWITCH
+-- =========================================================
+local function show(a)
+    TP_Page.Visible=a=="tp"
+    Role_Page.Visible=a=="role"
+    Move_Page.Visible=a=="move"
+    Misc_Page.Visible=a=="misc"
+end
+
+TP_Tab.MouseButton1Click:Connect(function() show("tp") end)
+Role_Tab.MouseButton1Click:Connect(function() show("role") end)
+Move_Tab.MouseButton1Click:Connect(function() show("move") end)
+Misc_Tab.MouseButton1Click:Connect(function() show("misc") end)
+
+-- =========================================================
+-- MINIMIZE / CLOSE / ALT
+-- =========================================================
+MinBtn.MouseButton1Click:Connect(function()
+    uiVisible=false
+    Main.Visible=false
+    Notif.Visible=true
+    TweenService:Create(Notif,TweenInfo.new(0.35),{Position=UDim2.fromScale(0.02,0.85)}):Play()
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    clearESP()
+    clearArrows()
+    ScreenGui:Destroy()
+end)
+
+NClose.MouseButton1Click:Connect(function()
+    Notif.Visible=false
+end)
+
+UserInputService.InputBegan:Connect(function(i,gp)
+    if not gp and i.KeyCode==Enum.KeyCode.RightAlt then
+        uiVisible=not uiVisible
+        Main.Visible=uiVisible
+        Notif.Visible=not uiVisible
+    end
+end)
