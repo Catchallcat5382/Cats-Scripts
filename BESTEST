@@ -301,7 +301,7 @@ NotifClose.MouseButton1Click:Connect(function() Notification.Visible=false end)
 
 UserInputService.InputBegan:Connect(function(input,gpe)
 	if gpe then return end
-	if input.KeyCode==Enum.KeyCode.RightShift then
+	if input.KeyCode==Enum.KeyCode.RightAlt then
 		if uiVisible then hideUI() else showUI() end
 	end
 end)
