@@ -570,7 +570,7 @@ local FarmThread
 local MAX_COINS = 50
 local TWEEN_SPEED = 12        -- SLOWER = safer
 local SCAN_DELAY = 0.5
-local RETRY_TIME = 1.6        -- how long to try touching one coin
+local RETRY_TIME = 0.5    -- how long to try touching one coin
 local NUDGE_RADIUS = 0.6     -- small movement range
 local SPIN_SPEED = 0.8       -- slow rotation (rad/sec)
 
