@@ -19,6 +19,18 @@ end)
 local WaypointGroups = {
 	["MM2"] = {
 		["Spawn"] = Vector3.new(361.682, 521.775, -13.196),
+		["Factory"] = Vector3.new(-52.226, 285.847, 9019.622),
+		["Bank"] = Vector3.new(-16.841, 295.433, 8981.422),
+		["Military Base"] = Vector3.new(29.708, 218.835, 9014.501),
+		["Police"] = Vector3.new(-38.434, 274.250, 9053.142),
+		["Mansion 2"] = Vector3.new(33.280, 272.325, 9053.686),
+		["Office 3"] = Vector3.new(-48.473, 304.751, 8983.259),
+		["Workplace"] = Vector3.new(-16.432, 291.770, 8981.514),
+		["Hospital"] = Vector3.new(18.667, 284.109, 8969.665),
+		["Research Facility"] = Vector3.new(-47.453, 302.100, 9027.407),
+		["House 2"] = Vector3.new(51.751, 269.554, 8953.838),
+		["Hotel"] = Vector3.new(-11.403, 277.640, 9015.469),
+		["Bio Lab"] = Vector3.new(635.582, 297.475, 9790.088),
 	},
 
     ["Write a letter"] = {
