@@ -326,8 +326,8 @@ ESPBtn.TextColor3=Color3.new(1,1,1)
 Instance.new("UICorner",ESPBtn)
 
 ESPBtn.MouseButton1Click:Connect(function()
-    roleESP=not roleESP
-    if roleESP then applyESP() else clearESP() end
+    roleESP = not roleESP
+    if not roleESP then clearESP() end
 end)
 
 local ArrowBtn=ESPBtn:Clone()
@@ -336,9 +336,10 @@ ArrowBtn.Text="Toggle Role Arrows"
 ArrowBtn.Parent=Role_Page
 
 ArrowBtn.MouseButton1Click:Connect(function()
-    arrowESP=not arrowESP
-    if arrowESP then applyArrows() else clearArrows() end
+    arrowESP = not arrowESP
+    if not arrowESP then clearArrows() end
 end)
+
 
 -- =========================================================
 -- SMOOTH SAFE FLY (MM2 FRIENDLY)
@@ -432,6 +433,156 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- =========================================================
+-- AUTO COIN FARM (MM2) — SMOOTH + RETRY + SAFE
+-- =========================================================
+
+local AutoFarm = false
+local FarmThread
+
+-- ===== SAFE SETTINGS =====
+local MAX_COINS = 50
+local TWEEN_SPEED = 12        -- SLOWER = safer
+local SCAN_DELAY = 0.5
+local RETRY_TIME = 1.6        -- how long to try touching one coin
+local NUDGE_RADIUS = 0.6     -- small movement range
+local SPIN_SPEED = 0.8       -- slow rotation (rad/sec)
+
+-- ===== HELPERS =====
+local function getChar()
+    local char = LocalPlayer.Character
+    if not char then return end
+    return char,
+        char:FindFirstChild("HumanoidRootPart"),
+        char:FindFirstChildOfClass("Humanoid")
+end
+
+local function coinCount()
+    local ls = LocalPlayer:FindFirstChild("leaderstats")
+    local c = ls and ls:FindFirstChild("Coins")
+    return c and c.Value or 0
+end
+
+local function getCoins()
+    local coins = {}
+    for _,v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart")
+        and v:FindFirstChild("TouchInterest")
+        and (v.Name:lower():find("coin") or v.Parent.Name:lower():find("coin")) then
+            table.insert(coins, v)
+        end
+    end
+    return coins
+end
+
+local function getClosestCoin(hrp, coins)
+    local best, dist = nil, math.huge
+    for _,c in ipairs(coins) do
+        if c and c.Parent then
+            local d = (c.Position - hrp.Position).Magnitude
+            if d < dist then
+                dist = d
+                best = c
+            end
+        end
+    end
+    return best
+end
+
+local function tweenTo(hrp, cf)
+    local dist = (hrp.Position - cf.Position).Magnitude
+    local time = math.clamp(dist / TWEEN_SPEED, 0.18, 0.6)
+
+    local tween = TweenService:Create(
+        hrp,
+        TweenInfo.new(time, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+        {CFrame = cf}
+    )
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function kill()
+    local _,_,hum = getChar()
+    if hum then hum.Health = 0 end
+end
+
+-- ===== TOUCH RETRY LOGIC =====
+local function touchCoinSafely(hrp, coin)
+    local start = tick()
+    local angle = 0
+
+    while coin and coin.Parent and tick() - start < RETRY_TIME do
+        angle += RunService.Heartbeat:Wait() * SPIN_SPEED
+
+        -- gentle spin + tiny movement offsets
+        local offset = Vector3.new(
+            math.cos(angle) * NUDGE_RADIUS,
+            1.1,
+            math.sin(angle) * NUDGE_RADIUS
+        )
+
+        local cf = CFrame.new(coin.Position + offset)
+            * CFrame.Angles(0, angle, 0)
+
+        tweenTo(hrp, cf)
+    end
+end
+
+-- ===== CORE FARM =====
+local function startFarm()
+    if FarmThread then return end
+    AutoFarm = true
+
+    FarmThread = task.spawn(function()
+        while AutoFarm do
+            local char, hrp, hum = getChar()
+            if not (char and hrp and hum) or hum.Health <= 0 then
+                task.wait(1)
+                continue
+            end
+
+            if coinCount() >= MAX_COINS then
+                kill()
+                AutoFarm = false
+                break
+            end
+
+            local coins = getCoins()
+            if #coins == 0 then
+                task.wait(SCAN_DELAY)
+                continue
+            end
+
+            local coin = getClosestCoin(hrp, coins)
+            if coin then
+                -- first smooth approach
+                tweenTo(hrp, CFrame.new(coin.Position + Vector3.new(0,1.2,0)))
+
+                -- retry touch until collected or timeout
+                if coin.Parent then
+                    touchCoinSafely(hrp, coin)
+                end
+            end
+
+            task.wait(0.1)
+        end
+
+        FarmThread = nil
+    end)
+end
+
+local function stopFarm()
+    AutoFarm = false
+end
+
+-- ===== AUTO RESUME AFTER RESPAWN =====
+LocalPlayer.CharacterAdded:Connect(function()
+    if AutoFarm then
+        task.delay(1.5, startFarm)
+    end
+end)
+
+-- =========================================================
 -- MISC (NO INVIS)
 -- =========================================================
 local function miscBtn(txt,y,cb)
@@ -442,7 +593,9 @@ local function miscBtn(txt,y,cb)
     b.BackgroundColor3=Color3.fromRGB(60,60,60)
     b.TextColor3=Color3.new(1,1,1)
     Instance.new("UICorner",b)
-    b.MouseButton1Click:Connect(cb)
+    b.MouseButton1Click:Connect(function()
+        cb(b)
+    end)
 end
 
 miscBtn("Rejoin",0,function()
@@ -459,6 +612,12 @@ miscBtn("Server Hop",45,function()
             break
         end
     end
+end)
+
+miscBtn("Auto Coin Farm [OFF]",90,function(btn)
+    autoFarm = not autoFarm
+    btn.Text = autoFarm and "Auto Coin Farm [ON]" or "Auto Coin Farm [OFF]"
+    if autoFarm then startFarm() else stopFarm() end
 end)
 
 -- =========================================================
@@ -493,7 +652,14 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 NClose.MouseButton1Click:Connect(function()
-    Notif.Visible=false
+    Notif.Visible=falses
+end)
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if msg:lower() == "!autofarm" then
+        autoFarm = not autoFarm
+        if autoFarm then startFarm() else stopFarm() end
+    end
 end)
 
 UserInputService.InputBegan:Connect(function(i,gp)
