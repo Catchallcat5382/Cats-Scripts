@@ -433,6 +433,133 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- =========================================================
+-- AUTO GUN GRAB (MM2 FIXED)
+-- =========================================================
+local AutoGrabGun = false
+local grabbingGun = false
+
+local function getHRP()
+    local c = LocalPlayer.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function smoothTP(cf, speed)
+    local hrp = getHRP()
+    if not hrp then return end
+
+    local dist = (hrp.Position - cf.Position).Magnitude
+    local t = math.clamp(dist / speed, 0.18, 0.45)
+
+    local tw = TweenService:Create(
+        hrp,
+        TweenInfo.new(t, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+        {CFrame = cf}
+    )
+    tw:Play()
+    tw.Completed:Wait()
+end
+
+local function isGunDrop(obj)
+    if not obj:IsA("BasePart") then return false end
+    local n = obj.Name:lower()
+    return n == "gun" or n == "gundrop"
+end
+
+workspace.DescendantAdded:Connect(function(obj)
+    if not AutoGrabGun or grabbingGun then return end
+    if not isGunDrop(obj) then return end
+
+    grabbingGun = true
+    task.spawn(function()
+        local hrp = getHRP()
+        if not hrp then grabbingGun = false return end
+
+        local originalCF = hrp.CFrame
+
+        -- wait for physics settle (CRITICAL)
+        task.wait(0.35)
+
+        if not obj or not obj.Parent then
+            grabbingGun = false
+            return
+        end
+
+        -- hover slightly above gun (best pickup reliability)
+        local grabCF = CFrame.new(obj.Position + Vector3.new(0, 1.25, 0))
+        smoothTP(grabCF, 16)
+
+        -- hold position so touch fires
+        task.wait(0.25)
+
+        -- return
+        smoothTP(originalCF, 22)
+        grabbingGun = false
+    end)
+end)
+
+-- =========================================================
+-- ANTI FLING (HARD CLAMP + SNAPBACK)
+-- =========================================================
+local AntiFling = false
+local lastSafeCF
+local MAX_VEL = 120        -- anything above = fling
+local CHECK_RATE = 0.05   -- seconds
+
+local function getHRP()
+    local c = LocalPlayer.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- track safe position
+RunService.Heartbeat:Connect(function()
+    if not AntiFling then return end
+    local hrp = getHRP()
+    if not hrp then return end
+
+    local vel = hrp.AssemblyLinearVelocity.Magnitude
+    if vel < 60 then
+        lastSafeCF = hrp.CFrame
+    end
+end)
+
+-- anti fling loop
+task.spawn(function()
+    while true do
+        task.wait(CHECK_RATE)
+        if not AntiFling then continue end
+
+        local hrp = getHRP()
+        if not hrp or not lastSafeCF then continue end
+
+        local vel = hrp.AssemblyLinearVelocity
+        if vel.Magnitude > MAX_VEL then
+            -- kill fling velocity
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+
+            -- remove injected movers
+            for _,v in ipairs(hrp:GetChildren()) do
+                if v:IsA("BodyVelocity")
+                or v:IsA("BodyAngularVelocity")
+                or v:IsA("LinearVelocity")
+                or v:IsA("AngularVelocity") then
+                    v:Destroy()
+                end
+            end
+
+            -- snap back
+            hrp.CFrame = lastSafeCF
+        end
+    end
+end)
+
+-- reset on respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    lastSafeCF = nil
+end)
+
+-- =========================================================
 -- AUTO COIN FARM (MM2) — SMOOTH + RETRY + SAFE
 -- =========================================================
 
@@ -618,6 +745,16 @@ miscBtn("Auto Coin Farm [OFF]",90,function(btn)
     autoFarm = not autoFarm
     btn.Text = autoFarm and "Auto Coin Farm [ON]" or "Auto Coin Farm [OFF]"
     if autoFarm then startFarm() else stopFarm() end
+end)
+
+miscBtn("Auto Grab Gun [OFF]",135,function(btn)
+    AutoGrabGun = not AutoGrabGun
+    btn.Text = AutoGrabGun and "Auto Grab Gun [ON]" or "Auto Grab Gun [OFF]"
+end)
+
+miscBtn("Anti Fling [OFF]",180,function(btn)
+    AntiFling = not AntiFling
+    btn.Text = AntiFling and "Anti Fling [ON]" or "Anti Fling [OFF]"
 end)
 
 -- =========================================================
