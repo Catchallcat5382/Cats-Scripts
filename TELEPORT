@@ -304,6 +304,55 @@ SpeedBox.FocusLost:Connect(function()
     SpeedBox.Text = tostring(flySpeed)
 end)
 
+-- ================= ANTI FLING (SMART) =================
+local antiFlingEnabled = false
+local antiFlingConn
+
+local MAX_HORIZONTAL_SPEED = 80
+local MAX_VERTICAL_SPEED = 120
+
+local function startAntiFling()
+	if antiFlingConn then return end
+
+	antiFlingConn = RunService.Heartbeat:Connect(function()
+		if not antiFlingEnabled then return end
+
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not (hrp and hum) then return end
+
+		-- Ignore intentional jumping
+		if hum:GetState() == Enum.HumanoidStateType.Jumping then
+			return
+		end
+
+		local vel = hrp.AssemblyLinearVelocity
+		local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
+		local vertical = math.abs(vel.Y)
+
+		if horizontal > MAX_HORIZONTAL_SPEED or vertical > MAX_VERTICAL_SPEED then
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end)
+end
+
+local function stopAntiFling()
+	antiFlingEnabled = false
+	if antiFlingConn then
+		antiFlingConn:Disconnect()
+		antiFlingConn = nil
+	end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+	if antiFlingEnabled then
+		task.wait(1)
+		startAntiFling()
+	end
+end)
+
 -- =========================================================
 -- MISC (FLING / ESP / SERVER)
 -- =========================================================
@@ -389,6 +438,15 @@ mkBtn("Server Hop",200,function()
     end
 end)
 
+mkBtn("Toggle Anti Fling",250,function()
+	antiFlingEnabled = not antiFlingEnabled
+	if antiFlingEnabled then
+		startAntiFling()
+	else
+		stopAntiFling()
+	end
+end)
+
 -- =========================================================
 -- TAB SWITCH
 -- =========================================================
@@ -448,10 +506,11 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    stopFly()
-    looping, orbiting, flingme, espEnabled = false,false,false,false
-    clearESP()
-    ScreenGui:Destroy()
+	stopFly()
+	stopAntiFling()
+	looping, orbiting, flingme, espEnabled = false,false,false,false
+	clearESP()
+	ScreenGui:Destroy()
 end)
 
 UserInputService.InputBegan:Connect(function(i,gp)
