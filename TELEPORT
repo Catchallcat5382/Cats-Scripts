@@ -15,6 +15,7 @@ local HttpService = game:GetService("HttpService")
 
 -- ================= FLY KEY TOGGLE =================
 local FLY_TOGGLE_KEY = Enum.KeyCode.Z
+local FLY_KEYCODE = Enum.KeyCode.Z
 
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()
@@ -500,15 +501,18 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
-	-- allow modifier keys EVEN if gp = true
+	-- keys that bypass gp
 	local isUiKey =
 		input.KeyCode == Enum.KeyCode.RightShift
 		or input.KeyCode == Enum.KeyCode.LeftAlt
 
-	-- block everything else if Roblox consumed it
-	if gp and not isUiKey then return end
+	local isFlyKey =
+		input.KeyCode == FLY_KEYCODE
 
-	-- block while typing
+	-- block Roblox-consumed input EXCEPT our keys
+	if gp and not (isUiKey or isFlyKey) then return end
+
+	-- block typing
 	if isTyping() then return end
 
 	-- ================= UI TOGGLE =================
@@ -524,8 +528,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		return
 	end
 
-	-- ================= FLY TOGGLE =================
-	if input.KeyCode == FLY_TOGGLE_KEY then
+	-- ================= FLY TOGGLE (Z ONLY) =================
+	if isFlyKey then
 		if flying then
 			stopFly()
 			FlyBtn.Text = "Fly"
