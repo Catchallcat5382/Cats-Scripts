@@ -476,6 +476,7 @@ end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
 	if gp then return end
+	if isTyping() then return end -- 🛡 prevents chat conflicts
 
 	-- Q TOGGLE FLY
 	if input.KeyCode == FLY_TOGGLE_KEY then
@@ -489,12 +490,12 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		return
 	end
 
-	-- E DOES NOTHING (explicit block)
+	-- E DOES NOTHING
 	if input.KeyCode == Enum.KeyCode.E then
 		return
 	end
 
-	-- EXISTING UI TOGGLE (KEEP THIS)
+	-- UI TOGGLE
 	if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftAlt then
 		uiVisible = not uiVisible
 		MainFrame.Visible = uiVisible
@@ -504,19 +505,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
 			play(NotifSound)
 		end
 	end
-end)
-
-UserInputService.InputBegan:Connect(function(i,gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightShift or i.KeyCode == Enum.KeyCode.LeftAlt then
-        uiVisible = not uiVisible
-        MainFrame.Visible = uiVisible
-        Notification.Visible = not uiVisible
-        if not uiVisible then
-            play(MinimizeSound)
-            play(NotifSound)
-        end
-    end
 end)
 
 -- =========================================================
