@@ -158,29 +158,86 @@ local loopTarget, looping = nil, false
 local orbitTarget, orbiting = nil, false
 local orbitAngle, orbitRadius, orbitSpeed = 0, 6, 2
 
-local function teleportTo(p)
-    if LocalPlayer.Character and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character:MoveTo(p.Character.HumanoidRootPart.Position + Vector3.new(0,3,0))
-    end
+local function instantGoto(player)
+	local char = LocalPlayer.Character
+	local targetChar = player and player.Character
+	if not (char and targetChar) then return end
+
+	local myHRP = char:FindFirstChild("HumanoidRootPart")
+	local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+	if not (myHRP and targetHRP) then return end
+
+	local offset =
+		-targetHRP.CFrame.LookVector * 2
+		+ Vector3.new(0, 0.1, 0)
+
+	myHRP.CFrame = CFrame.new(
+		targetHRP.Position + offset,
+		targetHRP.Position
+	)
+
+	myHRP.AssemblyLinearVelocity = Vector3.zero
 end
 
+local function softFollow(player, dt)
+	local char = LocalPlayer.Character
+	local targetChar = player and player.Character
+	if not (char and targetChar) then return end
+
+	local myHRP = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+	if not (myHRP and hum and targetHRP) then return end
+
+	-- NEVER force sit / platform stand
+	if hum.Sit then hum.Sit = false end
+
+	-- Desired position: behind target, same Y
+	local desiredPos =
+		targetHRP.Position
+		- targetHRP.CFrame.LookVector * 2
+		+ Vector3.new(0, 0.1, 0)
+
+	local delta = desiredPos - myHRP.Position
+	local dist = delta.Magnitude
+
+	-- If too far, snap ONCE (prevents roof / lag desync)
+	if dist > 12 then
+		myHRP.CFrame = CFrame.new(desiredPos, targetHRP.Position)
+		myHRP.AssemblyLinearVelocity = Vector3.zero
+		return
+	end
+
+	-- Soft velocity follow (keeps animations + emotes alive)
+	local followSpeed = 12
+	myHRP.AssemblyLinearVelocity =
+		delta.Unit * math.min(dist * followSpeed, 40)
+end
+
+local loopCooldown = 0
+
 RunService.Heartbeat:Connect(function(dt)
-    if looping and loopTarget then teleportTo(loopTarget) end
-    if orbiting and orbitTarget and orbitTarget.Character then
-        local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
-        local my = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and my then
-            orbitAngle += dt * orbitSpeed
-            my.CFrame = CFrame.new(
-                hrp.Position + Vector3.new(
-                    math.cos(orbitAngle)*orbitRadius,
-                    2,
-                    math.sin(orbitAngle)*orbitRadius
-                ),
-                hrp.Position
-            )
-        end
-    end
+	-- ===== SOFT LOOP GOTO =====
+	if looping and loopTarget then
+		softFollow(loopTarget, dt)
+	end
+
+	-- ===== ORBIT (UNCHANGED) =====
+	if orbiting and orbitTarget and orbitTarget.Character then
+		local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
+		local my = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if hrp and my then
+			orbitAngle += dt * orbitSpeed
+			my.CFrame = CFrame.new(
+				hrp.Position + Vector3.new(
+					math.cos(orbitAngle)*orbitRadius,
+					2,
+					math.sin(orbitAngle)*orbitRadius
+				),
+				hrp.Position
+			)
+		end
+	end
 end)
 
 local OrbitBtn = Instance.new("TextButton", TeleportFrame)
@@ -202,7 +259,10 @@ LoopBtn.Text = "Loop Goto"
 LoopBtn.Parent = TeleportFrame
 
 LoopBtn.MouseButton1Click:Connect(function()
-    looping = not looping
+	looping = not looping
+	if looping and loopTarget then
+		instantGoto(loopTarget)
+	end
     LoopBtn.Text = looping and "Stop Loop" or "Loop Goto"
 end)
 
@@ -220,9 +280,9 @@ local function refreshPlayers()
             b.TextColor3 = Color3.new(1,1,1)
             Instance.new("UICorner", b)
             b.MouseButton1Click:Connect(function()
-                teleportTo(p)
-                loopTarget = p
-                orbitTarget = p
+			instantGoto(p)
+			loopTarget = p
+			orbitTarget = p
             end)
         end
     end
