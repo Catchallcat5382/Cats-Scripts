@@ -1,137 +1,37 @@
 -- =========================================================
--- Explorer UI (Fully Tweened + Typing VFX)
--- Cat's Explorer
+-- Cat's Explorer (ULTIMATE MERGED BUILD – TRUE FINAL)
+-- EVERYTHING INCLUDED • SYNCED • CLEAN
 -- =========================================================
 
--- ================= Services =================
+-- ================= SERVICES =================
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
--- ================= Roots (Manual Selection) =================
-local ROOTS = {
-    game:GetService("Workspace"),
-    game:GetService("Players"),
-    game:GetService("Lighting"),
-    game:GetService("MaterialService"),
-    game:GetService("ReplicatedFirst"),
-    game:GetService("ReplicatedStorage"),
-    game:GetService("ServerScriptService"),
-    game:GetService("ServerStorage"),
-    game:GetService("StarterGui"),
-    game:GetService("StarterPack"),
-    game:GetService("StarterPlayer"),
-    game:GetService("Teams"),
-    game:GetService("SoundService"),
-    game:GetService("TextChatService"),
-}
+-- ================= FLY KEY TOGGLE =================
+local FLY_TOGGLE_KEY = Enum.KeyCode.Q
 
--- ================= ScreenGui =================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ExplorerUI"
-ScreenGui.Parent = CoreGui
-ScreenGui.ResetOnSpawn = false
-
--- ================= Main Window =================
-local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.fromOffset(420, 500)
-Main.Position = UDim2.fromScale(0.03, 0.15)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Instance.new("UICorner", Main)
-
-local Stroke = Instance.new("UIStroke", Main)
-Stroke.Thickness = 2
-Stroke.Color = Color3.fromRGB(80, 80, 80)
-
-local savedPosition = Main.Position
-local uiVisible = true
-
-Main:GetPropertyChangedSignal("Position"):Connect(function()
-	if uiVisible then
-		savedPosition = Main.Position
-	end
-end)
-
--- ================= Tween Presets =================
-local tweenIn = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local tweenOut = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-
--- ================= Header =================
-local HeaderBar = Instance.new("Frame", Main)
-HeaderBar.Size = UDim2.new(1, -10, 0, 40)
-HeaderBar.Position = UDim2.fromOffset(5, 5)
-HeaderBar.BackgroundTransparency = 1
-
-local Title = Instance.new("TextLabel", HeaderBar)
-Title.Size = UDim2.fromOffset(120, 40) -- fixed width
-Title.Position = UDim2.fromOffset(0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Cat's Explorer"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.TextColor3 = Color3.fromRGB(255,255,255)
-
-local HeaderPath = Instance.new("TextLabel", HeaderBar)
-HeaderPath.BackgroundTransparency = 1
-HeaderPath.TextXAlignment = Enum.TextXAlignment.Left
-HeaderPath.TextColor3 = Color3.fromRGB(200,200,200)
-HeaderPath.TextSize = 12
-
--- Dynamically adjust path size/position to avoid overlapping title
-local function updateHeaderPath()
-	local titleWidth = Title.TextBounds.X
-	local padding = 10
-	HeaderPath.Position = UDim2.fromOffset(titleWidth + padding, 0)
-	HeaderPath.Size = UDim2.new(1, -titleWidth - padding, 1, 0)
+-- ================= CHAT FOCUS CHECK =================
+local function isTyping()
+	return UserInputService:GetFocusedTextBox() ~= nil
 end
 
-local WindowButtons = Instance.new("Frame", HeaderBar)
-WindowButtons.Size = UDim2.fromOffset(70, 30)
-WindowButtons.Position = UDim2.new(1, -70, 0.5, -15)
-WindowButtons.BackgroundTransparency = 1
+-- ================= CLEAN OLD GUI =================
+pcall(function()
+    CoreGui:FindFirstChild("CatTeleportGUI"):Destroy()
+end)
 
-local ButtonLayout = Instance.new("UIListLayout", WindowButtons)
-ButtonLayout.FillDirection = Enum.FillDirection.Horizontal
-ButtonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-ButtonLayout.Padding = UDim.new(0, 6)
+-- ================= GUI ROOT =================
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "CatTeleportGUI"
+ScreenGui.ResetOnSpawn = false
 
-local Minimize = Instance.new("TextButton", WindowButtons)
-Minimize.Size = UDim2.fromOffset(30, 30)
-Minimize.Text = "–"
-Minimize.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Minimize.TextColor3 = Color3.fromRGB(255,255,255)
-Minimize.BorderSizePixel = 0
-Instance.new("UICorner", Minimize)
-
-local Close = Instance.new("TextButton", WindowButtons)
-Close.Size = UDim2.fromOffset(30, 30)
-Close.Text = "X"
-Close.BackgroundColor3 = Color3.fromRGB(120,40,40)
-Close.TextColor3 = Color3.fromRGB(255,255,255)
-Close.BorderSizePixel = 0
-Instance.new("UICorner", Close)
-
--- ================= Search =================
-local SearchBox = Instance.new("TextBox", Main)
-SearchBox.Size = UDim2.fromOffset(400, 28)
-SearchBox.Position = UDim2.fromOffset(10, 50)
-SearchBox.PlaceholderText = "Search (typo-tolerant)"
-SearchBox.ClearTextOnFocus = false
-SearchBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
-SearchBox.TextColor3 = Color3.fromRGB(255,255,255)
-SearchBox.BorderSizePixel = 0
-Instance.new("UICorner", SearchBox)
-
-local SearchStroke = Instance.new("UIStroke", SearchBox)
-SearchStroke.Thickness = 1
-SearchStroke.Color = Color3.fromRGB(90,90,90)
-
--- ================= Sounds =================
+-- ================= SOUNDS =================
 local TypingSound = Instance.new("Sound", ScreenGui)
 TypingSound.SoundId = "rbxassetid://133003979061644"
 TypingSound.Volume = 0.6
@@ -140,199 +40,504 @@ local MinimizeSound = Instance.new("Sound", ScreenGui)
 MinimizeSound.SoundId = "rbxassetid://131639624315532"
 MinimizeSound.Volume = 0.8
 
--- ================= Typing VFX =================
-local lastType = 0
+local NotifSound = Instance.new("Sound", ScreenGui)
+NotifSound.SoundId = "rbxassetid://133003979061644"
+NotifSound.Volume = 0.7
+
+local function play(s)
+    if s.IsPlaying then s:Stop() end
+    s:Play()
+end
+
+-- ================= MAIN FRAME =================
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.fromOffset(320, 420)
+MainFrame.Position = UDim2.fromScale(0.65, 0.2)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+MainFrame.Active = true
+MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame)
+
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Thickness = 2
+Stroke.Color = Color3.fromRGB(80,80,80)
+
+-- ================= HEADER =================
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1,0,0,35)
+Header.BackgroundTransparency = 1
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1,-70,1,0)
+Title.BackgroundTransparency = 1
+Title.Text = "Cat's Explorer"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local BtnHolder = Instance.new("Frame", Header)
+BtnHolder.Size = UDim2.fromOffset(70,30)
+BtnHolder.Position = UDim2.new(1,-70,0.5,-15)
+BtnHolder.BackgroundTransparency = 1
+local BtnLayout = Instance.new("UIListLayout", BtnHolder)
+BtnLayout.FillDirection = Enum.FillDirection.Horizontal
+BtnLayout.Padding = UDim.new(0,4)
+
+local MinimizeBtn = Instance.new("TextButton", BtnHolder)
+MinimizeBtn.Size = UDim2.fromOffset(30,30)
+MinimizeBtn.Text = "–"
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+MinimizeBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", MinimizeBtn)
+
+local CloseBtn = MinimizeBtn:Clone()
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = Color3.fromRGB(120,40,40)
+CloseBtn.Parent = BtnHolder
+
+-- ================= TABS =================
+local Tabs = Instance.new("Frame", MainFrame)
+Tabs.Position = UDim2.fromOffset(10,40)
+Tabs.Size = UDim2.new(1,-20,0,30)
+Tabs.BackgroundTransparency = 1
+
+local function makeTab(text, x)
+    local b = Instance.new("TextButton", Tabs)
+    b.Size = UDim2.new(0.33,0,1,0)
+    b.Position = UDim2.new(x,0,0,0)
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    b.TextColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", b)
+    return b
+end
+
+local TeleportTab = makeTab("Teleport",0)
+local FlyTab = makeTab("Fly",0.33)
+local MiscTab = makeTab("Misc",0.66)
+
+-- ================= PAGES =================
+local function newPage()
+    local f = Instance.new("Frame", MainFrame)
+    f.Position = UDim2.fromOffset(10,80)
+    f.Size = UDim2.new(1,-20,1,-90)
+    f.BackgroundTransparency = 1
+    return f
+end
+
+local TeleportFrame = newPage()
+local FlyFrame = newPage(); FlyFrame.Visible = false
+local MiscFrame = newPage(); MiscFrame.Visible = false
+
+-- =========================================================
+-- TELEPORT / LOOP / ORBIT
+-- =========================================================
+local SearchBox = Instance.new("TextBox", TeleportFrame)
+SearchBox.Size = UDim2.new(1,0,0,28)
+SearchBox.PlaceholderText = "Search player..."
+SearchBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+SearchBox.TextColor3 = Color3.new(1,1,1)
+SearchBox.ClearTextOnFocus = false
+Instance.new("UICorner", SearchBox)
+
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	local now = os.clock()
-	if now - lastType < 0.04 then return end
-	lastType = now
-
-	TypingSound:Play()
-	TweenService:Create(SearchStroke, TweenInfo.new(0.08), {
-		Color = Color3.fromRGB(0,170,255)
-	}):Play()
-
-	task.delay(0.08, function()
-		TweenService:Create(SearchStroke, TweenInfo.new(0.2), {
-			Color = Color3.fromRGB(90,90,90)
-		}):Play()
-	end)
+    play(TypingSound)
 end)
 
--- ================= Navigation =================
-local Back = Instance.new("TextButton", Main)
-Back.Size = UDim2.fromOffset(80, 28)
-Back.Position = UDim2.fromOffset(10, 82)
-Back.Text = "⬅ Back"
-Back.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Back.TextColor3 = Color3.fromRGB(255,255,255)
-Back.BorderSizePixel = 0
-Instance.new("UICorner", Back)
-
-local NextRoot = Instance.new("TextButton", Main)
-NextRoot.Size = UDim2.fromOffset(120, 28)
-NextRoot.Position = UDim2.fromOffset(100, 82)
-NextRoot.Text = "Next Root ▶"
-NextRoot.BackgroundColor3 = Color3.fromRGB(40,40,40)
-NextRoot.TextColor3 = Color3.fromRGB(255,255,255)
-NextRoot.BorderSizePixel = 0
-Instance.new("UICorner", NextRoot)
-
--- ================= Scroll =================
-local Scroll = Instance.new("ScrollingFrame", Main)
-Scroll.Position = UDim2.fromOffset(10, 120)
-Scroll.Size = UDim2.new(1, -20, 1, -130)
-Scroll.ScrollBarImageTransparency = 0.2
-Scroll.BorderSizePixel = 0
+local Scroll = Instance.new("ScrollingFrame", TeleportFrame)
+Scroll.Position = UDim2.fromOffset(0,35)
+Scroll.Size = UDim2.new(1,0,1,-120)
 Scroll.BackgroundTransparency = 1
-
+Scroll.ScrollBarImageTransparency = 0.5
 local Layout = Instance.new("UIListLayout", Scroll)
-Layout.Padding = UDim.new(0, 6)
 
--- ================= Notification =================
+local loopTarget, looping = nil, false
+local orbitTarget, orbiting = nil, false
+local orbitAngle, orbitRadius, orbitSpeed = 0, 6, 2
+
+local function teleportTo(p)
+    if LocalPlayer.Character and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character:MoveTo(p.Character.HumanoidRootPart.Position + Vector3.new(0,3,0))
+    end
+end
+
+RunService.Heartbeat:Connect(function(dt)
+    if looping and loopTarget then teleportTo(loopTarget) end
+    if orbiting and orbitTarget and orbitTarget.Character then
+        local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
+        local my = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and my then
+            orbitAngle += dt * orbitSpeed
+            my.CFrame = CFrame.new(
+                hrp.Position + Vector3.new(
+                    math.cos(orbitAngle)*orbitRadius,
+                    2,
+                    math.sin(orbitAngle)*orbitRadius
+                ),
+                hrp.Position
+            )
+        end
+    end
+end)
+
+local OrbitBtn = Instance.new("TextButton", TeleportFrame)
+OrbitBtn.Size = UDim2.new(1,0,0,28)
+OrbitBtn.Position = UDim2.new(0,0,1,-70)
+OrbitBtn.Text = "Orbit Player"
+OrbitBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+OrbitBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", OrbitBtn)
+
+OrbitBtn.MouseButton1Click:Connect(function()
+    orbiting = not orbiting
+    OrbitBtn.Text = orbiting and "Stop Orbit" or "Orbit Player"
+end)
+
+local LoopBtn = OrbitBtn:Clone()
+LoopBtn.Position = UDim2.new(0,0,1,-35)
+LoopBtn.Text = "Loop Goto"
+LoopBtn.Parent = TeleportFrame
+
+LoopBtn.MouseButton1Click:Connect(function()
+    looping = not looping
+    LoopBtn.Text = looping and "Stop Loop" or "Loop Goto"
+end)
+
+local function refreshPlayers()
+    for _,v in ipairs(Scroll:GetChildren()) do
+        if v:IsA("TextButton") then v:Destroy() end
+    end
+    local q = SearchBox.Text:lower()
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Name:lower():find(q) then
+            local b = Instance.new("TextButton", Scroll)
+            b.Size = UDim2.new(1,0,0,28)
+            b.Text = p.Name
+            b.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            b.TextColor3 = Color3.new(1,1,1)
+            Instance.new("UICorner", b)
+            b.MouseButton1Click:Connect(function()
+                teleportTo(p)
+                loopTarget = p
+                orbitTarget = p
+            end)
+        end
+    end
+    Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y)
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayers)
+Players.PlayerAdded:Connect(refreshPlayers)
+Players.PlayerRemoving:Connect(refreshPlayers)
+refreshPlayers()
+
+-- =========================================================
+-- FLY (SAFE + SPEED CONTROL)
+-- =========================================================
+local flying, flyConn = false, nil
+local bv, bg
+local flySpeed, accel = 40, 6
+local currentVel = Vector3.zero
+
+local function stopFly()
+    flying = false
+    if flyConn then flyConn:Disconnect() flyConn = nil end
+    if bv then bv:Destroy() bv = nil end
+    if bg then bg:Destroy() bg = nil end
+    currentVel = Vector3.zero
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = false end
+end
+
+	local function startFly()
+		if flying then return end
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not (char and hrp and hum) then return end
+
+		flying = true
+		hum.PlatformStand = true
+
+		bv = Instance.new("BodyVelocity", hrp)
+		bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+
+		bg = Instance.new("BodyGyro", hrp)
+		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
+		bg.P = 9000
+
+		flyConn = RunService.RenderStepped:Connect(function(dt)
+		-- 🚫 STOP MOVEMENT WHILE TYPING / CHATTING
+		if isTyping() then
+			currentVel = Vector3.zero
+			bv.Velocity = Vector3.zero
+			return
+		end
+
+		local cam = workspace.CurrentCamera
+		local moveDir = Vector3.zero
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.yAxis end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.yAxis end
+
+		if moveDir.Magnitude > 0 then
+			moveDir = moveDir.Unit * flySpeed
+		end
+
+		currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
+		bv.Velocity = currentVel
+		bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+	end)
+end
+
+LocalPlayer.CharacterAdded:Connect(stopFly)
+
+-- ================= FLY UI =================
+local FlyBtn = Instance.new("TextButton", FlyFrame)
+FlyBtn.Size = UDim2.new(1,0,0,40)
+FlyBtn.Text = "Fly"
+FlyBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+FlyBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", FlyBtn)
+
+FlyBtn.MouseButton1Click:Connect(function()
+    if flying then stopFly(); FlyBtn.Text = "Fly"
+    else startFly(); FlyBtn.Text = "Unfly" end
+end)
+
+local SpeedBox = Instance.new("TextBox", FlyFrame)
+SpeedBox.Position = UDim2.fromOffset(0,50)
+SpeedBox.Size = UDim2.new(1,0,0,30)
+SpeedBox.Text = tostring(flySpeed)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(45,45,45)
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", SpeedBox)
+
+SpeedBox.FocusLost:Connect(function()
+    local n = tonumber(SpeedBox.Text)
+    if n then flySpeed = math.clamp(n,10,300) end
+    SpeedBox.Text = tostring(flySpeed)
+end)
+
+-- =========================================================
+-- MISC (FLING / ESP / SERVER)
+-- =========================================================
+local flingme, savedTransparency = false, {}
+
+local function setFlingMe(state)
+    local c = LocalPlayer.Character
+    if not c then return end
+    for _,v in ipairs(c:GetDescendants()) do
+        if v:IsA("BasePart") or v:IsA("Decal") then
+            if state then
+                savedTransparency[v] = v.Transparency
+                v.Transparency = 1
+                if v:IsA("BasePart") then v.CanCollide = false end
+            else
+                if savedTransparency[v] then v.Transparency = savedTransparency[v] end
+                if v:IsA("BasePart") then v.CanCollide = true end
+            end
+        end
+    end
+end
+
+local espEnabled, esp = false, {}
+
+local function clearESP()
+    for _,v in pairs(esp) do if v then v:Destroy() end end
+    table.clear(esp)
+end
+
+local function createESP(p)
+    if p == LocalPlayer or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee = p.Character.HumanoidRootPart
+    box.Size = Vector3.new(4,6,4)
+    box.AlwaysOnTop = true
+    box.Color3 = Color3.fromRGB(255,0,0)
+    box.Transparency = 0.5
+    box.Parent = CoreGui
+    esp[p] = box
+end
+
+local function mkBtn(txt,y,cb)
+    local b = Instance.new("TextButton", MiscFrame)
+    b.Size = UDim2.new(1,0,0,40)
+    b.Position = UDim2.fromOffset(0,y)
+    b.Text = txt
+    b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    b.TextColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(cb)
+end
+
+mkBtn("Toggle Fling Me",0,function()
+    flingme = not flingme
+    setFlingMe(flingme)
+end)
+
+mkBtn("Toggle ESP",50,function()
+    espEnabled = not espEnabled
+    clearESP()
+    if espEnabled then
+        for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
+    end
+end)
+
+mkBtn("Rejoin",100,function()
+    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+end)
+
+mkBtn("Refresh Character",150,function()
+    if LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
+end)
+
+mkBtn("Server Hop",200,function()
+    local data = HttpService:JSONDecode(
+        game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100")
+    )
+    for _,v in ipairs(data.data) do
+        if v.playing < v.maxPlayers and v.id ~= game.JobId then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LocalPlayer)
+            break
+        end
+    end
+end)
+
+-- =========================================================
+-- TAB SWITCH
+-- =========================================================
+TeleportTab.MouseButton1Click:Connect(function()
+    TeleportFrame.Visible, FlyFrame.Visible, MiscFrame.Visible = true,false,false
+end)
+FlyTab.MouseButton1Click:Connect(function()
+    TeleportFrame.Visible, FlyFrame.Visible, MiscFrame.Visible = false,true,false
+end)
+MiscTab.MouseButton1Click:Connect(function()
+    TeleportFrame.Visible, FlyFrame.Visible, MiscFrame.Visible = false,false,true
+end)
+
+-- =========================================================
+-- MINIMIZE / CLOSE / RIGHTSHIFT
+-- =========================================================
+local uiVisible = true
+
+-- ================= HIDE UI NOTIFICATION =================
 local Notification = Instance.new("Frame", ScreenGui)
-Notification.Size = UDim2.fromOffset(260, 70)
-Notification.Position = UDim2.fromScale(-0.4, 0.85)
+Notification.Size = UDim2.fromOffset(260,70)
+Notification.Position = UDim2.fromScale(0.7,0.8)
 Notification.BackgroundColor3 = Color3.fromRGB(25,25,25)
-Notification.BorderSizePixel = 0
 Notification.Visible = false
 Instance.new("UICorner", Notification)
 
 local NotifText = Instance.new("TextLabel", Notification)
-NotifText.Size = UDim2.new(1, -40, 1, -10)
-NotifText.Position = UDim2.fromOffset(10, 5)
+NotifText.Size = UDim2.new(1,-40,1,-10)
+NotifText.Position = UDim2.fromOffset(8,5)
 NotifText.BackgroundTransparency = 1
-NotifText.TextWrapped = true
+NotifText.Text = "UI hidden\nPress RightShift or Left Alt"
 NotifText.TextScaled = true
-NotifText.TextColor3 = Color3.fromRGB(230,230,230)
-NotifText.Text = "UI hidden\nPress Right Shift to reopen"
+NotifText.TextColor3 = Color3.new(1,1,1)
+NotifText.Font = Enum.Font.GothamBold
 
 local NotifClose = Instance.new("TextButton", Notification)
-NotifClose.Size = UDim2.fromOffset(24, 24)
-NotifClose.Position = UDim2.fromOffset(230, 5)
+NotifClose.Size = UDim2.fromOffset(24,24)
+NotifClose.Position = UDim2.new(1,-28,0,4)
 NotifClose.Text = "X"
-NotifClose.BackgroundColor3 = Color3.fromRGB(100,40,40)
-NotifClose.TextColor3 = Color3.fromRGB(255,255,255)
-NotifClose.BorderSizePixel = 0
+NotifClose.Font = Enum.Font.GothamBold
+NotifClose.TextSize = 14
+NotifClose.TextColor3 = Color3.new(1,1,1)
+NotifClose.BackgroundColor3 = Color3.fromRGB(120,40,40)
 Instance.new("UICorner", NotifClose)
 
--- ================= Explorer Logic =================
-local currentRootIndex = 1
-local currentInstance = ROOTS[currentRootIndex]
-local history = {}
+NotifClose.MouseButton1Click:Connect(function()
+    Notification.Visible = false
+end)
 
-local function similarity(a,b)
-	a,b=a:lower(),b:lower()
-	if a==b then return 1 end
-	if a:find(b,1,true) or b:find(a,1,true) then return 0.85 end
-	local m=0
-	for i=1,math.min(#a,#b) do
-		if a:sub(i,i)==b:sub(i,i) then m+=1 end
+MinimizeBtn.MouseButton1Click:Connect(function()
+    if not uiVisible then return end
+    uiVisible = false
+    play(MinimizeSound)
+    MainFrame.Visible = false
+    Notification.Visible = true
+    play(NotifSound)
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    stopFly()
+    looping, orbiting, flingme, espEnabled = false,false,false,false
+    clearESP()
+    ScreenGui:Destroy()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+
+	-- Q TOGGLE FLY
+	if input.KeyCode == FLY_TOGGLE_KEY then
+		if flying then
+			stopFly()
+			FlyBtn.Text = "Fly"
+		else
+			startFly()
+			FlyBtn.Text = "Unfly"
+		end
+		return
 	end
-	return m/math.max(#a,#b)
-end
 
-local function refresh()
-	for _,v in ipairs(Scroll:GetChildren()) do
-		if v:IsA("TextButton") then v:Destroy() end
+	-- E DOES NOTHING (explicit block)
+	if input.KeyCode == Enum.KeyCode.E then
+		return
 	end
 
-	HeaderPath.Text = "Explorer → "..currentInstance:GetFullName()
-	updateHeaderPath() -- <-- dynamically resize to avoid overlap
-
-	local query = SearchBox.Text:lower()
-	for _,child in ipairs(currentInstance:GetChildren()) do
-		if query=="" or similarity(child.Name,query)>0.45 then
-			local btn = Instance.new("TextButton", Scroll)
-			btn.Size = UDim2.new(1,-6,0,32)
-			btn.TextXAlignment = Enum.TextXAlignment.Left
-			btn.Text = child.Name.."  ["..child.ClassName.."]"
-			btn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-			btn.TextColor3 = Color3.fromRGB(220,220,220)
-			btn.BorderSizePixel = 0
-			Instance.new("UICorner", btn)
-
-			btn.MouseButton1Click:Connect(function()
-				table.insert(history,currentInstance)
-				currentInstance = child
-				SearchBox.Text=""
-				refresh()
-			end)
+	-- EXISTING UI TOGGLE (KEEP THIS)
+	if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftAlt then
+		uiVisible = not uiVisible
+		MainFrame.Visible = uiVisible
+		Notification.Visible = not uiVisible
+		if not uiVisible then
+			play(MinimizeSound)
+			play(NotifSound)
 		end
 	end
-
-	task.wait()
-	Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y+10)
-end
-
--- ================= Toggle Logic =================
-local function hideUI()
-	if not uiVisible then return end
-	uiVisible = false
-	MinimizeSound:Play()
-
-	TweenService:Create(Main, tweenOut, {
-		Position = UDim2.fromScale(-0.5, savedPosition.Y.Scale)
-	}):Play()
-
-	task.delay(0.35, function()
-		Main.Visible = false
-		Notification.Visible = true
-		TweenService:Create(Notification, tweenIn, {
-			Position = UDim2.fromScale(0.02, 0.85)
-		}):Play()
-	end)
-end
-
-local function showUI()
-	if uiVisible then return end
-	Notification.Visible = false
-	Main.Visible = true
-	Main.Position = UDim2.fromScale(-0.5, savedPosition.Y.Scale)
-	TweenService:Create(Main, tweenIn, {Position = savedPosition}):Play()
-	uiVisible = true
-end
-
--- ================= Hooks =================
-SearchBox:GetPropertyChangedSignal("Text"):Connect(refresh)
-Minimize.MouseButton1Click:Connect(hideUI)
-Close.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-NotifClose.MouseButton1Click:Connect(function() Notification.Visible=false end)
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-	if UserInputService:GetFocusedTextBox() then return end
-
-	if input.KeyCode == Enum.KeyCode.RightShift
-	or input.KeyCode == Enum.KeyCode.LeftAlt
-	or input.KeyCode == Enum.KeyCode.RightAlt then
-
-		if uiVisible then hideUI() else showUI() end
-	end
 end)
 
--- ================= Navigation Buttons (Fixed) =================
-Back.MouseButton1Click:Connect(function()
-	if #history > 0 then
-		currentInstance = table.remove(history)
-		SearchBox.Text=""
-		refresh()
-	else
-		history = {}
-		currentRootIndex = (currentRootIndex - 2) % #ROOTS + 1
-		currentInstance = ROOTS[currentRootIndex]
-		SearchBox.Text=""
-		refresh()
-	end
-end)
+-- =========================================================
+-- CHAT COMMANDS (FULLY SYNCED)
+-- =========================================================
+local function findPlayerByName(partial)
+    partial = partial:lower()
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Name:lower():sub(1,#partial) == partial then
+            return p
+        end
+    end
+end
 
-NextRoot.MouseButton1Click:Connect(function()
-	history = {}
-	currentRootIndex = currentRootIndex % #ROOTS + 1
-	currentInstance = ROOTS[currentRootIndex]
-	SearchBox.Text=""
-	refresh()
-end)
+LocalPlayer.Chatted:Connect(function(msg)
+    local a = msg:lower():split(" ")
 
--- ================= Start =================
-refresh()
+    if a[1] == "!fly" then
+        if a[2] then
+            local n = tonumber(a[2])
+            if n then flySpeed = math.clamp(n,10,300); SpeedBox.Text = flySpeed end
+        end
+        startFly(); FlyBtn.Text = "Unfly"
+    end
+
+    if a[1] == "!unfly" then stopFly(); FlyBtn.Text = "Fly" end
+    if a[1] == "!loop" and a[2] then loopTarget = findPlayerByName(a[2]); looping = true end
+    if a[1] == "!unloop" then looping = false end
+    if a[1] == "!orbit" and a[2] then orbitTarget = findPlayerByName(a[2]); orbiting = true end
+    if a[1] == "!unorbit" then orbiting = false end
+    if a[1] == "!flingme" then flingme = true; setFlingMe(true) end
+    if a[1] == "!unflingme" then flingme = false; setFlingMe(false) end
+    if a[1] == "!esp" then espEnabled = true; clearESP(); for _,p in ipairs(Players:GetPlayers()) do createESP(p) end end
+    if a[1] == "!unesp" then espEnabled = false; clearESP() end
+    if a[1] == "!rejoin" then TeleportService:Teleport(game.PlaceId, LocalPlayer) end
+    if a[1] == "!refresh" and LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
+end)
