@@ -1,308 +1,372 @@
-﻿-- =========================================================
--- Explorer UI (Fully Tweened + Typing VFX)
--- Cat's Explorer
+-- =========================================================
+-- Cat's Explorer — ULTIMATE COMBINED / LIVE / STABLE
+-- Roots + History + Search + Path + Docked Tweened Props
+-- Green Highlight + Live Sync + Toggle + Clean State
 -- =========================================================
 
 -- ================= Services =================
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 -- ================= Roots =================
 local ROOTS = {
 	workspace,
-	game:GetService("ReplicatedStorage"),
 	game:GetService("Players"),
 	game:GetService("Lighting"),
-	game:GetService("SoundService"),
+	game:GetService("MaterialService"),
+	game:GetService("ReplicatedFirst"),
+	game:GetService("ReplicatedStorage"),
+	game:GetService("ServerScriptService"),
 	game:GetService("ServerStorage"),
+	game:GetService("StarterGui"),
+	game:GetService("StarterPack"),
+	game:GetService("StarterPlayer"),
+	game:GetService("Teams"),
+	game:GetService("SoundService"),
+	game:GetService("TextChatService"),
 }
+
+-- ================= State =================
+local currentRootIndex = 1
+local current = ROOTS[currentRootIndex]
+local history = {}
+local connections = {}
+
+local SelectedInstance = nil
+local PropertiesOpenFor = nil
+local SelectionHighlights = {}
+
+-- ================= Highlight =================
+local function clearHighlights()
+	for _, h in ipairs(SelectionHighlights) do
+		if h then h:Destroy() end
+	end
+	table.clear(SelectionHighlights)
+	SelectedInstance = nil
+end
+
+local function highlight(inst)
+	clearHighlights()
+	if inst:IsA("BasePart") or inst:IsA("Model") then
+		local h = Instance.new("Highlight")
+		h.FillColor = Color3.fromRGB(0,255,0)
+		h.OutlineColor = Color3.fromRGB(0,255,0)
+		h.FillTransparency = 0.25
+		h.OutlineTransparency = 0
+		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		h.Parent = inst
+		table.insert(SelectionHighlights, h)
+	end
+	SelectedInstance = inst
+end
 
 -- ================= ScreenGui =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ExplorerUI"
-ScreenGui.Parent = CoreGui
+ScreenGui.Name = "CatsExplorer"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
 
 -- ================= Main Window =================
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.fromOffset(420, 500)
-Main.Position = UDim2.fromScale(0.03, 0.15) -- instant load
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Main.Size = UDim2.fromOffset(460,540)
+Main.Position = UDim2.fromScale(0.03,0.15)
+Main.BackgroundColor3 = Color3.fromRGB(20,20,20)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
 Instance.new("UICorner", Main)
-
-local Stroke = Instance.new("UIStroke", Main)
-Stroke.Thickness = 2
-Stroke.Color = Color3.fromRGB(80, 80, 80)
-
-local savedPosition = Main.Position
-local uiVisible = true
-
-Main:GetPropertyChangedSignal("Position"):Connect(function()
-	if uiVisible then
-		savedPosition = Main.Position
-	end
-end)
-
--- ================= Tween Presets =================
-local tweenIn = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local tweenOut = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+Instance.new("UIStroke", Main).Color = Color3.fromRGB(80,80,80)
 
 -- ================= Header =================
-local HeaderBar = Instance.new("Frame", Main)
-HeaderBar.Size = UDim2.new(1, -10, 0, 40)
-HeaderBar.Position = UDim2.fromOffset(5, 5)
-HeaderBar.BackgroundTransparency = 1
+local Header = Instance.new("TextLabel", Main)
+Header.Position = UDim2.fromOffset(10,6)
+Header.Size = UDim2.new(1,-90,0,24)
+Header.Text = "Cat's Explorer"
+Header.Font = Enum.Font.GothamBold
+Header.TextSize = 18
+Header.TextColor3 = Color3.new(1,1,1)
+Header.TextXAlignment = Enum.TextXAlignment.Left
+Header.BackgroundTransparency = 1
 
-local Title = Instance.new("TextLabel", HeaderBar)
-Title.Size = UDim2.new(1, -90, 1, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Cat's Explorer"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.TextColor3 = Color3.fromRGB(255,255,255)
-
-local HeaderPath = Instance.new("TextLabel", HeaderBar)
-HeaderPath.Size = UDim2.new(1, -90, 1, 0)
-HeaderPath.BackgroundTransparency = 1
-HeaderPath.TextXAlignment = Enum.TextXAlignment.Right
-HeaderPath.TextColor3 = Color3.fromRGB(200,200,200)
-HeaderPath.TextSize = 12
-
-local WindowButtons = Instance.new("Frame", HeaderBar)
-WindowButtons.Size = UDim2.fromOffset(70, 30)
-WindowButtons.Position = UDim2.new(1, -70, 0.5, -15)
-WindowButtons.BackgroundTransparency = 1
-
-local ButtonLayout = Instance.new("UIListLayout", WindowButtons)
-ButtonLayout.FillDirection = Enum.FillDirection.Horizontal
-ButtonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-ButtonLayout.Padding = UDim.new(0, 6)
-
-local Minimize = Instance.new("TextButton", WindowButtons)
-Minimize.Size = UDim2.fromOffset(30, 30)
+-- ================= Window Buttons =================
+local Minimize = Instance.new("TextButton", Main)
+Minimize.Size = UDim2.fromOffset(30,24)
+Minimize.Position = UDim2.new(1,-70,0,6)
 Minimize.Text = "–"
 Minimize.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Minimize.TextColor3 = Color3.fromRGB(255,255,255)
+Minimize.TextColor3 = Color3.new(1,1,1)
 Minimize.BorderSizePixel = 0
 Instance.new("UICorner", Minimize)
 
-local Close = Instance.new("TextButton", WindowButtons)
-Close.Size = UDim2.fromOffset(30, 30)
+local Close = Instance.new("TextButton", Main)
+Close.Size = UDim2.fromOffset(30,24)
+Close.Position = UDim2.new(1,-35,0,6)
 Close.Text = "X"
 Close.BackgroundColor3 = Color3.fromRGB(120,40,40)
-Close.TextColor3 = Color3.fromRGB(255,255,255)
+Close.TextColor3 = Color3.new(1,1,1)
 Close.BorderSizePixel = 0
 Instance.new("UICorner", Close)
 
+-- ================= Path Bar =================
+local PathBar = Instance.new("TextLabel", Main)
+PathBar.Position = UDim2.fromOffset(10,34)
+PathBar.Size = UDim2.new(1,-20,0,18)
+PathBar.TextXAlignment = Enum.TextXAlignment.Left
+PathBar.Font = Enum.Font.Gotham
+PathBar.TextSize = 12
+PathBar.TextColor3 = Color3.fromRGB(200,200,200)
+PathBar.BackgroundTransparency = 1
+PathBar.ClipsDescendants = true
+
 -- ================= Search =================
-local SearchBox = Instance.new("TextBox", Main)
-SearchBox.Size = UDim2.fromOffset(400, 28)
-SearchBox.Position = UDim2.fromOffset(10, 50)
-SearchBox.PlaceholderText = "Search (typo-tolerant)"
-SearchBox.ClearTextOnFocus = false
-SearchBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
-SearchBox.TextColor3 = Color3.fromRGB(255,255,255)
-SearchBox.BorderSizePixel = 0
-Instance.new("UICorner", SearchBox)
-
-local SearchStroke = Instance.new("UIStroke", SearchBox)
-SearchStroke.Thickness = 1
-SearchStroke.Color = Color3.fromRGB(90,90,90)
-
--- ================= Sounds =================
-local TypingSound = Instance.new("Sound", ScreenGui)
-TypingSound.SoundId = "rbxassetid://133003979061644"
-TypingSound.Volume = 0.6
-
-local MinimizeSound = Instance.new("Sound", ScreenGui)
-MinimizeSound.SoundId = "rbxassetid://131639624315532"
-MinimizeSound.Volume = 0.8
-
--- ================= Typing VFX =================
-local lastType = 0
-SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	local now = os.clock()
-	if now - lastType < 0.04 then return end
-	lastType = now
-
-	TypingSound:Play()
-	TweenService:Create(SearchStroke, TweenInfo.new(0.08), {
-		Color = Color3.fromRGB(0,170,255)
-	}):Play()
-
-	task.delay(0.08, function()
-		TweenService:Create(SearchStroke, TweenInfo.new(0.2), {
-			Color = Color3.fromRGB(90,90,90)
-		}):Play()
-	end)
-end)
+local Search = Instance.new("TextBox", Main)
+Search.Position = UDim2.fromOffset(10,56)
+Search.Size = UDim2.new(1,-20,0,28)
+Search.PlaceholderText = "Search"
+Search.ClearTextOnFocus = false
+Search.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Search.TextColor3 = Color3.new(1,1,1)
+Search.BorderSizePixel = 0
+Instance.new("UICorner", Search)
 
 -- ================= Navigation =================
 local Back = Instance.new("TextButton", Main)
-Back.Size = UDim2.fromOffset(80, 28)
-Back.Position = UDim2.fromOffset(10, 82)
+Back.Position = UDim2.fromOffset(10,90)
+Back.Size = UDim2.fromOffset(80,26)
 Back.Text = "⬅ Back"
 Back.BackgroundColor3 = Color3.fromRGB(40,40,40)
-Back.TextColor3 = Color3.fromRGB(255,255,255)
+Back.TextColor3 = Color3.new(1,1,1)
 Back.BorderSizePixel = 0
 Instance.new("UICorner", Back)
 
 local NextRoot = Instance.new("TextButton", Main)
-NextRoot.Size = UDim2.fromOffset(120, 28)
-NextRoot.Position = UDim2.fromOffset(100, 82)
+NextRoot.Position = UDim2.fromOffset(100,90)
+NextRoot.Size = UDim2.fromOffset(140,26)
 NextRoot.Text = "Next Root ▶"
 NextRoot.BackgroundColor3 = Color3.fromRGB(40,40,40)
-NextRoot.TextColor3 = Color3.fromRGB(255,255,255)
+NextRoot.TextColor3 = Color3.new(1,1,1)
 NextRoot.BorderSizePixel = 0
 Instance.new("UICorner", NextRoot)
 
--- ================= Scroll =================
+-- ================= Explorer List =================
 local Scroll = Instance.new("ScrollingFrame", Main)
-Scroll.Position = UDim2.fromOffset(10, 120)
-Scroll.Size = UDim2.new(1, -20, 1, -130)
-Scroll.ScrollBarImageTransparency = 0.2
+Scroll.Position = UDim2.fromOffset(10,124)
+Scroll.Size = UDim2.new(1,-20,1,-134)
+Scroll.CanvasSize = UDim2.new()
 Scroll.BorderSizePixel = 0
+Scroll.ScrollBarImageTransparency = 0.3
 Scroll.BackgroundTransparency = 1
 
 local Layout = Instance.new("UIListLayout", Scroll)
-Layout.Padding = UDim.new(0, 6)
+Layout.Padding = UDim.new(0,6)
 
--- ================= Notification =================
-local Notification = Instance.new("Frame", ScreenGui)
-Notification.Size = UDim2.fromOffset(260, 70)
-Notification.Position = UDim2.fromScale(-0.4, 0.85)
-Notification.BackgroundColor3 = Color3.fromRGB(25,25,25)
-Notification.BorderSizePixel = 0
-Notification.Visible = false
-Instance.new("UICorner", Notification)
+-- ================= Properties Panel =================
+local Props = Instance.new("Frame", ScreenGui)
+Props.Size = UDim2.fromOffset(260,540)
+Props.BackgroundColor3 = Color3.fromRGB(18,18,18)
+Props.BorderSizePixel = 0
+Props.Visible = false
+Instance.new("UICorner", Props)
+Instance.new("UIStroke", Props).Color = Color3.fromRGB(80,80,80)
 
-local NotifText = Instance.new("TextLabel", Notification)
-NotifText.Size = UDim2.new(1, -40, 1, -10)
-NotifText.Position = UDim2.fromOffset(10, 5)
-NotifText.BackgroundTransparency = 1
-NotifText.TextWrapped = true
-NotifText.TextScaled = true
-NotifText.TextColor3 = Color3.fromRGB(230,230,230)
-NotifText.Text = "UI hidden\nPress Right Shift to reopen"
+local PropTitle = Instance.new("TextLabel", Props)
+PropTitle.Size = UDim2.new(1,-10,0,30)
+PropTitle.Position = UDim2.fromOffset(5,5)
+PropTitle.BackgroundTransparency = 1
+PropTitle.Font = Enum.Font.GothamBold
+PropTitle.TextSize = 14
+PropTitle.TextColor3 = Color3.new(1,1,1)
+PropTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-local NotifClose = Instance.new("TextButton", Notification)
-NotifClose.Size = UDim2.fromOffset(24, 24)
-NotifClose.Position = UDim2.fromOffset(230, 5)
-NotifClose.Text = "X"
-NotifClose.BackgroundColor3 = Color3.fromRGB(100,40,40)
-NotifClose.TextColor3 = Color3.fromRGB(255,255,255)
-NotifClose.BorderSizePixel = 0
-Instance.new("UICorner", NotifClose)
+local PropList = Instance.new("ScrollingFrame", Props)
+PropList.Position = UDim2.fromOffset(5,40)
+PropList.Size = UDim2.new(1,-10,1,-45)
+PropList.BorderSizePixel = 0
+PropList.ScrollBarImageTransparency = 0.3
+PropList.BackgroundTransparency = 1
 
--- ================= Explorer Logic =================
-local currentRootIndex = 1
-local currentInstance = ROOTS[currentRootIndex]
-local history = {}
+local PropLayout = Instance.new("UIListLayout", PropList)
+PropLayout.Padding = UDim.new(0,4)
 
-local function similarity(a,b)
-	a,b=a:lower(),b:lower()
-	if a==b then return 1 end
-	if a:find(b,1,true) or b:find(a,1,true) then return 0.85 end
-	local m=0
-	for i=1,math.min(#a,#b) do
-		if a:sub(i,i)==b:sub(i,i) then m+=1 end
-	end
-	return m/math.max(#a,#b)
+-- ================= Dock + Tween =================
+local function updatePropsPosition()
+	Props.Position = Main.Position + UDim2.fromOffset(Main.AbsoluteSize.X + 8, 0)
 end
 
-local function refresh()
-	for _,v in ipairs(Scroll:GetChildren()) do
-		if v:IsA("TextButton") then v:Destroy() end
+Main:GetPropertyChangedSignal("Position"):Connect(updatePropsPosition)
+
+local function tweenProps(show)
+	updatePropsPosition()
+	local tween = TweenService:Create(
+		Props,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{Position = Props.Position}
+	)
+	if show then Props.Visible = true end
+	tween:Play()
+	if not show then
+		tween.Completed:Once(function()
+			Props.Visible = false
+		end)
+	end
+end
+
+-- ================= Property Groups =================
+local PROPERTY_GROUPS = {
+	Appearance = {"Transparency","Reflectance","Color","Material","BrickColor","CastShadow"},
+	Collision = {"CanCollide","CanTouch","CanQuery","CollisionGroup","Massless"},
+	Transform = {"Position","Orientation","Size","Velocity","AssemblyLinearVelocity"},
+	Data = {"Name","ClassName","Parent","Archivable"},
+}
+
+-- ================= Properties =================
+local function showProperties(inst)
+	if PropertiesOpenFor == inst then
+		PropertiesOpenFor = nil
+		tweenProps(false)
+		clearHighlights()
+		return
 	end
 
-	HeaderPath.Text = "Explorer → "..currentInstance:GetFullName()
-	local query = SearchBox.Text:lower()
+	PropertiesOpenFor = inst
+	clearHighlights()
+	highlight(inst)
 
-	for _,child in ipairs(currentInstance:GetChildren()) do
-		if query=="" or similarity(child.Name,query)>0.45 then
-			local btn = Instance.new("TextButton", Scroll)
-			btn.Size = UDim2.new(1,-6,0,32)
-			btn.TextXAlignment = Enum.TextXAlignment.Left
-			btn.Text = child.Name.."  ["..child.ClassName.."]"
-			btn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-			btn.TextColor3 = Color3.fromRGB(220,220,220)
-			btn.BorderSizePixel = 0
-			Instance.new("UICorner", btn)
+	for _,c in ipairs(PropList:GetChildren()) do
+		if c:IsA("TextLabel") then c:Destroy() end
+	end
 
-			btn.MouseButton1Click:Connect(function()
-				table.insert(history,currentInstance)
-				currentInstance = child
-				SearchBox.Text=""
-				refresh()
-			end)
+	PropTitle.Text = inst.Name.." ["..inst.ClassName.."]"
+
+	local function header(text)
+		local h = Instance.new("TextLabel", PropList)
+		h.Size = UDim2.new(1,-6,0,22)
+		h.Text = text
+		h.Font = Enum.Font.GothamBold
+		h.TextSize = 14
+		h.TextColor3 = Color3.new(1,1,1)
+		h.BackgroundTransparency = 1
+		h.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	local function add(text)
+		local l = Instance.new("TextLabel", PropList)
+		l.Size = UDim2.new(1,-6,0,20)
+		l.TextWrapped = true
+		l.Text = text
+		l.Font = Enum.Font.Gotham
+		l.TextSize = 13
+		l.TextColor3 = Color3.fromRGB(210,210,210)
+		l.BackgroundTransparency = 1
+		l.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	for group, list in pairs(PROPERTY_GROUPS) do
+		header(group)
+		for _,prop in ipairs(list) do
+			local ok,val = pcall(function() return inst[prop] end)
+			if ok then add(prop.." = "..tostring(val)) end
 		end
 	end
 
 	task.wait()
-	Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y+10)
+	PropList.CanvasSize = UDim2.fromOffset(0,PropLayout.AbsoluteContentSize.Y + 8)
+	tweenProps(true)
 end
 
--- ================= Toggle Logic =================
-local function hideUI()
-	if not uiVisible then return end
-	uiVisible = false
-	MinimizeSound:Play()
-
-	TweenService:Create(Main, tweenOut, {
-		Position = UDim2.fromScale(-0.5, savedPosition.Y.Scale)
-	}):Play()
-
-	task.delay(0.35, function()
-		Main.Visible = false
-		Notification.Visible = true
-		TweenService:Create(Notification, tweenIn, {
-			Position = UDim2.fromScale(0.02, 0.85)
-		}):Play()
-	end)
+-- ================= Helpers =================
+local function updatePath()
+	PathBar.Text = current:GetFullName():gsub("%.", " → ")
 end
 
-local function showUI()
-	if uiVisible then return end
-	Notification.Visible = false
-	Main.Visible = true
-	Main.Position = UDim2.fromScale(-0.5, savedPosition.Y.Scale)
-	TweenService:Create(Main, tweenIn, {Position = savedPosition}):Play()
-	uiVisible = true
+local function disconnectAll()
+	for _,c in ipairs(connections) do c:Disconnect() end
+	table.clear(connections)
 end
 
--- ================= Hooks =================
-SearchBox:GetPropertyChangedSignal("Text"):Connect(refresh)
-Minimize.MouseButton1Click:Connect(hideUI)
-Close.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-NotifClose.MouseButton1Click:Connect(function() Notification.Visible=false end)
+-- ================= Refresh =================
+local function refresh()
+	disconnectAll()
+	updatePath()
 
-UserInputService.InputBegan:Connect(function(input,gpe)
-	if gpe then return end
-	if input.KeyCode==Enum.KeyCode.RightShift then
-		if uiVisible then hideUI() else showUI() end
+	for _,c in ipairs(Scroll:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
 	end
-end)
+
+	local q = Search.Text:lower()
+
+	for _,child in ipairs(current:GetChildren()) do
+		if q == "" or child.Name:lower():find(q,1,true) then
+			local b = Instance.new("TextButton", Scroll)
+			b.Size = UDim2.new(1,-6,0,30)
+			b.Text = child.Name.."  ["..child.ClassName.."]"
+			b.TextXAlignment = Enum.TextXAlignment.Left
+			b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+			b.TextColor3 = Color3.new(1,1,1)
+			b.BorderSizePixel = 0
+			Instance.new("UICorner", b)
+
+			b.MouseButton1Click:Connect(function()
+				table.insert(history,current)
+				current = child
+				Search.Text = ""
+				refresh()
+			end)
+
+			b.MouseButton2Click:Connect(function()
+				showProperties(child)
+			end)
+		end
+	end
+
+	Scroll.CanvasSize = UDim2.fromOffset(0,Layout.AbsoluteContentSize.Y + 6)
+
+	table.insert(connections, current.ChildAdded:Connect(refresh))
+	table.insert(connections, current.ChildRemoved:Connect(refresh))
+end
+
+-- ================= Controls =================
+Search:GetPropertyChangedSignal("Text"):Connect(refresh)
 
 Back.MouseButton1Click:Connect(function()
-	if #history>0 then
-		currentInstance = table.remove(history)
-		SearchBox.Text=""
-		refresh()
+	if #history > 0 then
+		current = table.remove(history)
+	else
+		currentRootIndex = (currentRootIndex - 2) % #ROOTS + 1
+		current = ROOTS[currentRootIndex]
 	end
+	refresh()
 end)
 
 NextRoot.MouseButton1Click:Connect(function()
-	history={}
-	currentRootIndex = currentRootIndex%#ROOTS+1
-	currentInstance = ROOTS[currentRootIndex]
-	SearchBox.Text=""
+	history = {}
+	currentRootIndex = currentRootIndex % #ROOTS + 1
+	current = ROOTS[currentRootIndex]
 	refresh()
+end)
+
+Minimize.MouseButton1Click:Connect(function()
+	Main.Visible = false
+	Props.Visible = false
+	clearHighlights()
+end)
+
+Close.MouseButton1Click:Connect(function()
+	clearHighlights()
+	ScreenGui:Destroy()
+end)
+
+UserInputService.InputBegan:Connect(function(i,gp)
+	if gp then return end
+	if i.KeyCode == Enum.KeyCode.RightAlt then
+		Main.Visible = not Main.Visible
+		if not Main.Visible then
+			Props.Visible = false
+			clearHighlights()
+		end
+	end
 end)
 
 -- ================= Start =================
