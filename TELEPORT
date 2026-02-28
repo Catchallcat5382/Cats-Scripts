@@ -14,7 +14,7 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
 -- ================= FLY KEY TOGGLE =================
-local FLY_TOGGLE_KEY = Enum.KeyCode.X
+local FLY_TOGGLE_KEY = Enum.KeyCode.Q
 
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()
@@ -504,19 +504,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
 			play(NotifSound)
 		end
 	end
-end)
-
-UserInputService.InputBegan:Connect(function(i,gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightShift or i.KeyCode == Enum.KeyCode.LeftAlt then
-        uiVisible = not uiVisible
-        MainFrame.Visible = uiVisible
-        Notification.Visible = not uiVisible
-        if not uiVisible then
-            play(MinimizeSound)
-            play(NotifSound)
-        end
-    end
 end)
 
 -- =========================================================
