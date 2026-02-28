@@ -398,15 +398,40 @@ mkBtn("Refresh Character",150,function()
 end)
 
 mkBtn("Server Hop",200,function()
-    local data = HttpService:JSONDecode(
-        game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100")
-    )
-    for _,v in ipairs(data.data) do
-        if v.playing < v.maxPlayers and v.id ~= game.JobId then
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LocalPlayer)
-            break
-        end
-    end
+	local placeId = game.PlaceId
+	local cursor = ""
+	local tried = {}
+
+	while true do
+		local url =
+			"https://games.roblox.com/v1/games/"
+			.. placeId
+			.. "/servers/Public?limit=100"
+			.. (cursor ~= "" and "&cursor="..cursor or "")
+
+		local res = HttpService:JSONDecode(game:HttpGet(url))
+
+		for _,server in ipairs(res.data) do
+			-- ✅ EXCLUDE FULL SERVERS + CURRENT SERVER
+			if server.playing < server.maxPlayers
+				and server.id ~= game.JobId
+				and not tried[server.id] then
+
+				tried[server.id] = true
+				TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+				return
+			end
+		end
+
+		-- no more pages → stop
+		if not res.nextPageCursor then
+			warn("No non-full servers found")
+			return
+		end
+
+		cursor = res.nextPageCursor
+		task.wait(0.2) -- anti-rate-limit
+	end
 end)
 
 -- =========================================================
