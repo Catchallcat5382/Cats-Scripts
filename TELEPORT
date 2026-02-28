@@ -21,16 +21,6 @@ local function isTyping()
 	return UserInputService:GetFocusedTextBox() ~= nil
 end
 
--- ================= CONNECTION TRACKER =================
-local Connections = {}
-
-local function track(conn)
-	if typeof(conn) == "RBXScriptConnection" then
-		table.insert(Connections, conn)
-	end
-	return conn
-end
-
 -- ================= CLEAN OLD GUI =================
 pcall(function()
     CoreGui:FindFirstChild("CatTeleportGUI"):Destroy()
@@ -172,36 +162,7 @@ local function teleportTo(p)
     end
 end
 
--- ================= FULL SHUTDOWN =================
-local shuttingDown = false
-
-local function shutdown()
-	if shuttingDown then return end
-	shuttingDown = true
-
-	-- stop gameplay systems
-	pcall(stopFly)
-	looping = false
-	orbiting = false
-	flingme = false
-	espEnabled = false
-	pcall(clearESP)
-
-	-- disconnect tracked connections
-	for _,c in ipairs(Connections) do
-		pcall(function() c:Disconnect() end)
-	end
-	table.clear(Connections)
-
-	-- destroy gui last
-	pcall(function()
-		if ScreenGui then
-			ScreenGui:Destroy()
-		end
-	end)
-end
-
-track(RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt)
     if looping and loopTarget then teleportTo(loopTarget) end
     if orbiting and orbitTarget and orbitTarget.Character then
         local hrp = orbitTarget.Character:FindFirstChild("HumanoidRootPart")
@@ -218,7 +179,7 @@ track(RunService.Heartbeat:Connect(function(dt)
             )
         end
     end
-end))  -- ✅ closes Connect AND track
+end)
 
 local OrbitBtn = Instance.new("TextButton", TeleportFrame)
 OrbitBtn.Size = UDim2.new(1,0,0,28)
@@ -267,8 +228,8 @@ local function refreshPlayers()
 end
 
 SearchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayers)
-track(Players.PlayerAdded:Connect(refreshPlayers))
-track(Players.PlayerRemoving:Connect(refreshPlayers))
+Players.PlayerAdded:Connect(refreshPlayers)
+Players.PlayerRemoving:Connect(refreshPlayers)
 refreshPlayers()
 
 -- =========================================================
@@ -306,7 +267,7 @@ end
 		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
 		bg.P = 9000
 
-		flyConn = track(RunService.RenderStepped:Connect(function(dt)
+		flyConn = RunService.RenderStepped:Connect(function(dt)
 		-- 🚫 STOP MOVEMENT WHILE TYPING / CHATTING
 		if isTyping() then
 			currentVel = Vector3.zero
@@ -330,11 +291,11 @@ end
 
 		currentVel = currentVel:Lerp(moveDir, math.clamp(dt * accel, 0, 1))
 		bv.Velocity = currentVel
-        bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
-    end))
+		bg.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+	end)
 end
 
-track(LocalPlayer.CharacterAdded:Connect(stopFly))
+LocalPlayer.CharacterAdded:Connect(stopFly)
 
 -- ================= FLY UI =================
 local FlyBtn = Instance.new("TextButton", FlyFrame)
@@ -385,24 +346,56 @@ local function setFlingMe(state)
     end
 end
 
-local espEnabled, esp = false, {}
+local espEnabled = false
+local esp = {}
 
 local function clearESP()
-    for _,v in pairs(esp) do if v then v:Destroy() end end
-    table.clear(esp)
+	for _,h in pairs(esp) do
+		if h then h:Destroy() end
+	end
+	table.clear(esp)
 end
 
-local function createESP(p)
-    if p == LocalPlayer or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end
-    local box = Instance.new("BoxHandleAdornment")
-    box.Adornee = p.Character.HumanoidRootPart
-    box.Size = Vector3.new(4,6,4)
-    box.AlwaysOnTop = true
-    box.Color3 = Color3.fromRGB(255,0,0)
-    box.Transparency = 0.5
-    box.Parent = CoreGui
-    esp[p] = box
+local function applyHighlight(player)
+	if player == LocalPlayer then return end
+	if not player.Character then return end
+	if esp[player] then esp[player]:Destroy() end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "CatESP"
+	highlight.Adornee = player.Character
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.FillColor = Color3.fromRGB(255, 0, 0)
+	highlight.FillTransparency = 0.85
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.OutlineTransparency = 0
+	highlight.Parent = CoreGui
+
+	esp[player] = highlight
 end
+
+-- handle respawns
+local function hookCharacter(player)
+	player.CharacterAdded:Connect(function()
+		if espEnabled then
+			task.wait(0.5)
+			applyHighlight(player)
+		end
+	end)
+end
+
+-- init existing players
+for _,p in ipairs(Players:GetPlayers()) do
+	hookCharacter(p)
+end
+
+Players.PlayerAdded:Connect(hookCharacter)
+Players.PlayerRemoving:Connect(function(p)
+	if esp[p] then
+		esp[p]:Destroy()
+		esp[p] = nil
+	end
+end)
 
 local function mkBtn(txt,y,cb)
     local b = Instance.new("TextButton", MiscFrame)
@@ -421,11 +414,14 @@ mkBtn("Toggle Fling Me",0,function()
 end)
 
 mkBtn("Toggle ESP",50,function()
-    espEnabled = not espEnabled
-    clearESP()
-    if espEnabled then
-        for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
-    end
+	espEnabled = not espEnabled
+	clearESP()
+
+	if espEnabled then
+		for _,p in ipairs(Players:GetPlayers()) do
+			applyHighlight(p)
+		end
+	end
 end)
 
 mkBtn("Rejoin",100,function()
@@ -532,16 +528,13 @@ MinimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-	shutdown()
+    stopFly()
+    looping, orbiting, flingme, espEnabled = false,false,false,false
+    clearESP()
+    ScreenGui:Destroy()
 end)
 
-track(ScreenGui.AncestryChanged:Connect(function(_, parent)
-	if not parent then
-		shutdown()
-	end
-end))
-
-track(UserInputService.InputBegan:Connect(function(input, gp)
+UserInputService.InputBegan:Connect(function(input, gp)
 	-- keys that MUST bypass gp
 	local isUiKey =
 		input.KeyCode == Enum.KeyCode.RightShift
@@ -585,7 +578,7 @@ track(UserInputService.InputBegan:Connect(function(input, gp)
 	if input.KeyCode == Enum.KeyCode.E then
 		return
 	end
-end))
+end)
 
 -- =========================================================
 -- CHAT COMMANDS (FULLY SYNCED)
@@ -599,7 +592,7 @@ local function findPlayerByName(partial)
     end
 end
 
-track(LocalPlayer.Chatted:Connect(function(msg)
+LocalPlayer.Chatted:Connect(function(msg)
     local a = msg:lower():split(" ")
 
     if a[1] == "!fly" then
@@ -621,4 +614,4 @@ track(LocalPlayer.Chatted:Connect(function(msg)
     if a[1] == "!unesp" then espEnabled = false; clearESP() end
     if a[1] == "!rejoin" then TeleportService:Teleport(game.PlaceId, LocalPlayer) end
     if a[1] == "!refresh" and LocalPlayer.Character then LocalPlayer.Character:BreakJoints() end
-end))
+end)
