@@ -14,7 +14,7 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
 -- ================= FLY KEY TOGGLE =================
-local FLY_TOGGLE_KEY = Enum.KeyCode.Q
+local FLY_TOGGLE_KEY = Enum.KeyCode.X
 
 -- ================= CHAT FOCUS CHECK =================
 local function isTyping()
@@ -475,9 +475,31 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
-	if gp then return end
+	-- allow modifier keys EVEN if gp = true
+	local isUiKey =
+		input.KeyCode == Enum.KeyCode.RightShift
+		or input.KeyCode == Enum.KeyCode.LeftAlt
 
-	-- Q TOGGLE FLY
+	-- block everything else if Roblox consumed it
+	if gp and not isUiKey then return end
+
+	-- block while typing
+	if isTyping() then return end
+
+	-- ================= UI TOGGLE =================
+	if isUiKey then
+		uiVisible = not uiVisible
+		MainFrame.Visible = uiVisible
+		Notification.Visible = not uiVisible
+
+		if not uiVisible then
+			play(MinimizeSound)
+			play(NotifSound)
+		end
+		return
+	end
+
+	-- ================= FLY TOGGLE =================
 	if input.KeyCode == FLY_TOGGLE_KEY then
 		if flying then
 			stopFly()
@@ -489,20 +511,9 @@ UserInputService.InputBegan:Connect(function(input, gp)
 		return
 	end
 
-	-- E DOES NOTHING (explicit block)
+	-- ================= E DOES NOTHING =================
 	if input.KeyCode == Enum.KeyCode.E then
 		return
-	end
-
-	-- EXISTING UI TOGGLE (KEEP THIS)
-	if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftAlt then
-		uiVisible = not uiVisible
-		MainFrame.Visible = uiVisible
-		Notification.Visible = not uiVisible
-		if not uiVisible then
-			play(MinimizeSound)
-			play(NotifSound)
-		end
 	end
 end)
 
