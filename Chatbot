@@ -1,0 +1,1578 @@
+-- ============================================================
+--  AI CHAT RESPONDER  •  Groq Edition  (Executor Script)
+--  Paste and run in your executor — no setup needed
+--  Get your free API key at: console.groq.com
+-- ============================================================
+
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
+local HttpService      = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local RunService       = game:GetService("RunService")
+local CoreGui          = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ── GROQ MODELS ───────────────────────────────────────────
+local MODELS = {
+    { id = "moonshotai/kimi-k2-instruct",                   label = "Kimi K2",          smart = "★★★★★ Smartest" },
+    { id = "openai/gpt-oss-120b",                           label = "GPT-OSS 120B",     smart = "★★★★★ Best" },
+    { id = "llama-3.3-70b-versatile",                       label = "Llama 3.3 70B",    smart = "★★★★☆ Great" },
+    { id = "meta-llama/llama-4-maverick-17b-128e-instruct", label = "Llama 4 Maverick", smart = "★★★★☆ Fast+Smart" },
+    { id = "meta-llama/llama-4-scout-17b-16e-instruct",     label = "Llama 4 Scout",    smart = "★★★☆☆ Balanced" },
+    { id = "qwen/qwen3-32b",                                label = "Qwen3 32B",        smart = "★★★★☆ Reasoning" },
+    { id = "llama-3.1-8b-instant",                          label = "Llama 3.1 8B",     smart = "★★☆☆☆ Fastest" },
+    { id = "mixtral-8x7b-32768",                            label = "Mixtral 8x7B",     smart = "★★★☆☆ Good" },
+}
+local selectedModel = MODELS[1].id
+
+-- ── GROQ CONFIG ───────────────────────────────────────────
+local GROQ_URL    = "https://api.groq.com/openai/v1/chat/completions"
+local COOLDOWN    = 3
+local MAX_HISTORY = 20
+
+local GRAMMAR_SUFFIX = " Always use correct grammar, spelling, and punctuation. Write in complete sentences. Do NOT start your reply by repeating or addressing the player's name — just reply to what they said directly."
+
+-- ── SHUTDOWN FLAG ─────────────────────────────────────────
+local isShutdown = false
+
+-- ── EXECUTOR HTTP ─────────────────────────────────────────
+local function httpPost(url, headers, body)
+    local fn = (syn and syn.request)
+            or (http and http.request)
+            or (typeof(request)=="function" and request)
+            or (typeof(http_request)=="function" and http_request)
+            or (fluxus and fluxus.request)
+    if not fn then return nil, "No HTTP function found" end
+    local ok, resp = pcall(fn, {Url=url,Method="POST",Headers=headers,Body=body})
+    if not ok then return nil, tostring(resp) end
+    return resp, nil
+end
+
+-- ── CONVERSATION MEMORY ───────────────────────────────────
+local conversationHistory = {}
+local function getHistory(uid)
+    if not conversationHistory[uid] then conversationHistory[uid]={} end
+    return conversationHistory[uid]
+end
+local function addToHistory(uid, role, content)
+    local h = getHistory(uid)
+    table.insert(h, {role=role,content=content})
+    while #h > MAX_HISTORY do table.remove(h,1) end
+end
+
+-- ── GROQ API CALL ─────────────────────────────────────────
+-- NOTE: systemPrompt is passed in at call time so live SysBox.Text is always used
+local function callGroq(apiKey, systemPrompt, userId, senderName, userMessage)
+    if not apiKey or apiKey=="" then return nil,"NO_KEY" end
+    addToHistory(userId,"user", senderName.." says: "..userMessage)
+    local messages = {{role="system", content=systemPrompt..GRAMMAR_SUFFIX}}
+    for _,e in ipairs(getHistory(userId)) do table.insert(messages,e) end
+    local ok, body = pcall(HttpService.JSONEncode, HttpService, {
+        model=selectedModel, max_tokens=150, messages=messages,
+    })
+    if not ok then return nil,"JSON_ENCODE" end
+    local resp, err = httpPost(GROQ_URL, {
+        ["Content-Type"]="application/json",
+        ["Authorization"]="Bearer "..apiKey,
+    }, body)
+    if not resp then
+        local h=getHistory(userId); if #h>0 then table.remove(h,#h) end
+        return nil,err
+    end
+    if resp.StatusCode==429 then return nil,"RATE_LIMITED" end
+    if resp.StatusCode==401 then return nil,"BAD_KEY" end
+    if resp.StatusCode~=200 then
+        local h=getHistory(userId); if #h>0 then table.remove(h,#h) end
+        local msg="HTTP_"..tostring(resp.StatusCode)
+        pcall(function()
+            local d=HttpService:JSONDecode(resp.Body)
+            if d.error and d.error.message then msg=msg..": "..d.error.message end
+        end)
+        return nil,msg
+    end
+    local ok2,data=pcall(HttpService.JSONDecode,HttpService,resp.Body)
+    if not ok2 then return nil,"JSON_DECODE" end
+    local reply=data.choices[1].message.content
+    addToHistory(userId,"assistant",reply)
+    return reply,nil
+end
+
+-- ── ROBLOX CHAT RATE LIMIT ────────────────────────────────
+local chatSendTimes={}
+local ROBLOX_CHAT_LIMIT=5; local ROBLOX_CHAT_WINDOW=6
+local function canSendRobloxChat()
+    local now=tick()
+    for i=#chatSendTimes,1,-1 do
+        if now-chatSendTimes[i]>ROBLOX_CHAT_WINDOW then table.remove(chatSendTimes,i) end
+    end
+    return #chatSendTimes<ROBLOX_CHAT_LIMIT
+end
+local function recordRobloxSend() table.insert(chatSendTimes,tick()) end
+
+-- ── CONTENT FILTER ────────────────────────────────────────
+local BLOCKED_RESPONSE="Sorry, I can't answer that. Please try asking something else!"
+local function vim_escape(s) return s:gsub("([%(%)%.%%%+%-%*%?%[%^%$])","%%%1") end
+local BAD_WORDS={
+    "fuck","shit","bitch","cunt","dick","cock","pussy","bastard","piss",
+    "slut","whore","fag","nigga","nigger","retard","kys","kms",
+    "porn","sex","nude","naked","nsfw","hentai","rape","molest",
+    "pedophile","pedo","loli","kill yourself","shoot up","stab","murder",
+    "cocaine","heroin","meth","fentanyl","crack",
+}
+local CHAR_MAP={["@"]="a",["4"]="a",["3"]="e",["1"]="i",["!"]="i",["0"]="o",["5"]="s",["$"]="s",["7"]="t"}
+local function normalize(msg)
+    local s=msg:lower()
+    for c,r in pairs(CHAR_MAP) do s=s:gsub(vim_escape(c),r) end
+    s=s:gsub("[%s%.%-_*,;:!?/\\|]",""):gsub("(.)%1+","%1")
+    return s
+end
+local function containsBadWord(msg)
+    local n=normalize(msg); local l=msg:lower():gsub("[%s%.%-_*]","")
+    for _,w in ipairs(BAD_WORDS) do
+        if n:find(normalize(w),1,true) then return true end
+        if l:find(w:gsub("%s",""),1,true) then return true end
+    end
+    return false
+end
+local function shouldBlock(msg) return msg:match("^[%s#]+$")~=nil or containsBadWord(msg) end
+
+-- ── COLOURS ───────────────────────────────────────────────
+local C={
+    BG=Color3.fromRGB(10,12,20), PANEL=Color3.fromRGB(16,19,34),
+    BORDER=Color3.fromRGB(50,80,180), ACCENT=Color3.fromRGB(80,140,255),
+    ACCENT2=Color3.fromRGB(160,80,255), TEXT=Color3.fromRGB(220,230,255),
+    DIMTEXT=Color3.fromRGB(100,120,170), GREEN=Color3.fromRGB(60,220,130),
+    YELLOW=Color3.fromRGB(255,200,50), RED=Color3.fromRGB(255,80,80),
+    ORANGE=Color3.fromRGB(255,140,50), MSGBG_USER=Color3.fromRGB(22,28,55),
+    MSGBG_AI=Color3.fromRGB(18,22,42), MSGBG_SYS=Color3.fromRGB(30,20,20),
+    DROPDOWN=Color3.fromRGB(12,15,28),
+}
+local fast=TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+local med=TweenInfo.new(0.35,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)
+local spring=TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+
+local function tw(o,i,g) TweenService:Create(o,i,g):Play() end
+local function new(cls,props,parent)
+    local inst=Instance.new(cls)
+    for k,v in pairs(props) do inst[k]=v end
+    if parent then inst.Parent=parent end
+    return inst
+end
+local function stroke(obj,col,thick)
+    local s=Instance.new("UIStroke")
+    s.Color=col or C.BORDER; s.Thickness=thick or 1
+    s.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; s.Parent=obj; return s
+end
+local function grad(obj,c0,c1,rot)
+    local g=Instance.new("UIGradient")
+    g.Color=ColorSequence.new(c0,c1); g.Rotation=rot or 90; g.Parent=obj
+end
+local function corner(obj,r) new("UICorner",{CornerRadius=UDim.new(0,r or 8)},obj) end
+
+-- ── CLEAN OLD ─────────────────────────────────────────────
+if CoreGui:FindFirstChild("GroqChatUI") then CoreGui:FindFirstChild("GroqChatUI"):Destroy() end
+
+-- ── ROOT GUI ──────────────────────────────────────────────
+local Gui=new("ScreenGui",{
+    Name="GroqChatUI",ResetOnSpawn=false,
+    ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,
+},CoreGui)
+
+local cleanupTasks={}
+local function onCleanup(fn) table.insert(cleanupTasks,fn) end
+local function SHUTDOWN()
+    if isShutdown then return end; isShutdown=true
+    for _,fn in ipairs(cleanupTasks) do pcall(fn) end
+    if Gui and Gui.Parent then Gui:Destroy() end
+end
+
+-- ── TRANSCRIPT STORAGE ────────────────────────────────────
+local transcripts={}; local liveLog={}; local transcriptIdCounter=0
+local scriptStartTick=tick()
+
+local function nowLabel()
+    local e=tick()-scriptStartTick
+    return string.format("%02d:%02d",math.floor(e/60),math.floor(e%60))
+end
+local function genId()
+    transcriptIdCounter+=1
+    local chars="abcdefghijklmnopqrstuvwxyz0123456789"; local s=""
+    math.randomseed(tick()*1000+transcriptIdCounter)
+    for _=1,4 do local i=math.random(1,#chars); s=s..chars:sub(i,i) end
+    return "tx-"..s..tostring(transcriptIdCounter)
+end
+
+local function buildTranscriptHTML(snapshot)
+    local lines={}; local function L(s) table.insert(lines,s) end
+    L('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">')
+    L('<meta name="viewport" content="width=device-width,initial-scale=1">')
+    L('<title>Transcript '..snapshot.id..'</title><style>')
+    L(':root{--bg:#0a0c14;--panel:#10131e;--border:#3250b4;--accent:#508cff;--accent2:#a050ff;')
+    L('--text:#dce6ff;--dim:#6478aa;--user:#161c37;--ai:#12162a;--sys:#1e1414;--orange:#ff8c32;}')
+    L('*{box-sizing:border-box;margin:0;padding:0;}')
+    L('body{background:var(--bg);color:var(--text);font-family:"JetBrains Mono","Fira Code",monospace;min-height:100vh;padding:24px 16px;}')
+    L('.wrap{max-width:780px;margin:0 auto;}')
+    L('header{border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:24px;}')
+    L('header h1{font-size:1.2rem;letter-spacing:0.08em;color:var(--accent);margin-bottom:6px;}')
+    L('header .meta{font-size:0.72rem;color:var(--dim);}header .meta span{margin-right:18px;}')
+    L('.msg{border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid transparent;}')
+    L('.msg-user{background:var(--user);border-color:#1e2840;}.msg-ai{background:var(--ai);border-color:#161a30;}')
+    L('.msg-sys{background:var(--sys);border-color:#2a1818;}')
+    L('.speaker{font-size:0.68rem;font-weight:700;letter-spacing:0.1em;margin-bottom:4px;}')
+    L('.sp-user{color:var(--accent);}.sp-ai{color:var(--accent2);}.sp-sys{color:var(--orange);}')
+    L('.text{font-size:0.88rem;line-height:1.55;}.ts{float:right;font-size:0.65rem;color:var(--dim);}')
+    L('.dl-btn{display:inline-block;margin-top:14px;padding:8px 20px;border-radius:6px;')
+    L('background:var(--accent);color:#000;font-size:0.75rem;font-weight:700;cursor:pointer;border:none;}')
+    L('footer{margin-top:32px;text-align:center;font-size:0.7rem;color:var(--dim);}</style></head><body>')
+    L('<div class="wrap"><header><h1>✦ Groq Chat Transcript</h1><div class="meta">')
+    L('<span>ID: <b>'..snapshot.id..'</b></span>')
+    L('<span>Label: <b>'..snapshot.label..'</b></span>')
+    L('<span>Messages: <b>'..tostring(#snapshot.entries)..'</b></span></div>')
+    L('<button class="dl-btn" id="dlbtn">⬇ Save as .txt</button></header>')
+    if #snapshot.entries==0 then
+        L('<div style="text-align:center;color:var(--dim);padding:60px 0">No messages logged.</div>')
+    else
+        for _,e in ipairs(snapshot.entries) do
+            local cls="msg-"..e.kind; local spCls="sp-"..e.kind
+            local spLabel = e.kind=="ai" and "✦ GROQ" or e.kind=="sys" and "⚙ SYSTEM" or "👤 "..tostring(e.speaker)
+            local safe=e.message:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;"):gsub('"','&quot;')
+            L('<div class="msg '..cls..'"><span class="ts">'..e.time..'</span>')
+            L('<div class="speaker '..spCls..'">'..spLabel..'</div>')
+            L('<div class="text">'..safe..'</div></div>')
+        end
+    end
+    L('<footer>Generated by Groq Chat Responder • '..snapshot.id..'</footer></div>')
+    L('<script>(function(){')
+    L('var msgs='..HttpService:JSONEncode(snapshot.entries)..';')
+    L('document.getElementById("dlbtn").onclick=function(){')
+    L('var txt="GROQ CHAT TRANSCRIPT — '..snapshot.id..'\\nLabel: '..snapshot.label..'\\nMessages: '..tostring(#snapshot.entries)..'\\n\\n"+"=".repeat(60)+"\\n\\n";')
+    L('msgs.forEach(function(m){var who=m.kind==="ai"?"[GROQ]":m.kind==="sys"?"[SYSTEM]":"["+m.speaker+"]";')
+    L('txt+="["+m.time+"] "+who+"\\n"+m.message+"\\n\\n";});')
+    L('var b=new Blob([txt],{type:"text/plain"});var a=document.createElement("a");')
+    L('a.href=URL.createObjectURL(b);a.download="transcript-'..snapshot.id..'.txt";a.click();};')
+    L('})();</script></body></html>')
+    return table.concat(lines,"\n")
+end
+
+local function buildDataURI(html)
+    return "data:text/html;charset=utf-8,"..html:gsub("%%","%%25"):gsub("#","%%23")
+end
+
+-- ══════════════════════════════════════════════════════════
+--  TOGGLE BUTTON
+-- ══════════════════════════════════════════════════════════
+local ToggleBtn=new("TextButton",{
+    Size=UDim2.new(0,48,0,48),Position=UDim2.new(1,-64,0,20),
+    BackgroundColor3=C.PANEL,Text="🤖",
+    Font=Enum.Font.GothamBold,TextSize=22,TextColor3=C.TEXT,
+    AutoButtonColor=false,ZIndex=20,
+},Gui)
+new("UICorner",{CornerRadius=UDim.new(1,0)},ToggleBtn)
+stroke(ToggleBtn,C.ACCENT,1.5)
+
+local PulseRing=new("Frame",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=19},ToggleBtn)
+new("UICorner",{CornerRadius=UDim.new(1,0)},PulseRing)
+local PulseStroke=stroke(PulseRing,C.ACCENT,2)
+local pulseThread=task.spawn(function()
+    while not isShutdown and Gui.Parent do
+        tw(PulseStroke,TweenInfo.new(0.9,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),{Thickness=6,Transparency=0.8})
+        task.wait(0.9); if isShutdown or not Gui.Parent then break end
+        tw(PulseStroke,TweenInfo.new(0.9,Enum.EasingStyle.Sine,Enum.EasingDirection.In),{Thickness=1.5,Transparency=0})
+        task.wait(0.9)
+    end
+end)
+onCleanup(function() task.cancel(pulseThread) end)
+
+-- ══════════════════════════════════════════════════════════
+--  MAIN PANEL
+-- ══════════════════════════════════════════════════════════
+local Panel=new("Frame",{
+    Size=UDim2.new(0,370,0,0),Position=UDim2.new(1,-430,0,80),
+    BackgroundColor3=C.PANEL,BackgroundTransparency=1,
+    ClipsDescendants=true,ZIndex=10,
+},Gui)
+new("UICorner",{CornerRadius=UDim.new(0,14)},Panel)
+stroke(Panel,C.BORDER,1.5)
+grad(Panel,Color3.fromRGB(16,19,34),Color3.fromRGB(10,12,22),160)
+
+-- Header
+local Header=new("Frame",{Size=UDim2.new(1,0,0,52),BackgroundColor3=C.BG,ZIndex=11},Panel)
+new("UICorner",{CornerRadius=UDim.new(0,14)},Header)
+new("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.BG,BorderSizePixel=0,ZIndex=11},Header)
+local AccentLine=new("Frame",{Size=UDim2.new(1,0,0,2),BackgroundColor3=C.ACCENT,ZIndex=12},Header)
+grad(AccentLine,C.ACCENT,C.ACCENT2,0)
+new("TextLabel",{
+    Size=UDim2.new(1,-140,1,0),Position=UDim2.new(0,14,0,0),
+    BackgroundTransparency=1,Text="🤖 AI Chatbot",
+    Font=Enum.Font.GothamBold,TextSize=15,TextColor3=C.TEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=13,
+},Header)
+local StatusDot=new("Frame",{Size=UDim2.new(0,8,0,8),Position=UDim2.new(1,-104,0.5,-4),BackgroundColor3=Color3.fromRGB(120,130,160),ZIndex=13},Header)
+new("UICorner",{CornerRadius=UDim.new(1,0)},StatusDot)
+local StatusLbl=new("TextLabel",{
+    Size=UDim2.new(0,58,1,0),Position=UDim2.new(1,-94,0,0),
+    BackgroundTransparency=1,Text="OFF",Font=Enum.Font.GothamBold,TextSize=10,
+    TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=13,
+},Header)
+local CloseBtn=new("TextButton",{
+    Size=UDim2.new(0,28,0,28),Position=UDim2.new(1,-36,0.5,-14),
+    BackgroundColor3=Color3.fromRGB(50,20,20),Text="X",
+    Font=Enum.Font.GothamBold,TextSize=13,TextColor3=C.RED,
+    AutoButtonColor=false,ZIndex=14,
+},Header)
+corner(CloseBtn,6); stroke(CloseBtn,C.RED,1)
+CloseBtn.MouseButton1Click:Connect(function()
+    -- Blocked during tutorial so users must complete or skip it
+    if tutorialActive then return end
+    SHUTDOWN()
+end)
+CloseBtn.MouseEnter:Connect(function() tw(CloseBtn,fast,{BackgroundColor3=Color3.fromRGB(80,20,20)}) end)
+CloseBtn.MouseLeave:Connect(function() tw(CloseBtn,fast,{BackgroundColor3=Color3.fromRGB(50,20,20)}) end)
+
+local function sectionLabel(text,yPos)
+    new("TextLabel",{
+        Size=UDim2.new(1,-24,0,14),Position=UDim2.new(0,12,0,yPos),
+        BackgroundTransparency=1,Text=text,Font=Enum.Font.GothamBold,TextSize=9,
+        TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=11,
+    },Panel)
+end
+
+-- ── API KEY SECTION ────────────────────────────────────────
+-- Tutorial button sits inline with the section label
+local apiKeyLabelY = 60
+new("TextLabel",{
+    Size=UDim2.new(0,200,0,14),Position=UDim2.new(0,12,0,apiKeyLabelY),
+    BackgroundTransparency=1,Text="GROQ API KEY  •  console.groq.com",
+    Font=Enum.Font.GothamBold,TextSize=9,
+    TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=11,
+},Panel)
+
+-- "?" tutorial button next to label
+local TutBtn=new("TextButton",{
+    Size=UDim2.new(0,70,0,14),Position=UDim2.new(1,-82,0,apiKeyLabelY),
+    BackgroundColor3=Color3.fromRGB(20,35,80),Text="? HOW TO SETUP",
+    Font=Enum.Font.GothamBold,TextSize=8,TextColor3=C.YELLOW,
+    AutoButtonColor=false,ZIndex=11,
+},Panel)
+corner(TutBtn,4); stroke(TutBtn,C.YELLOW,1)
+TutBtn.MouseEnter:Connect(function() tw(TutBtn,fast,{BackgroundColor3=Color3.fromRGB(35,55,110)}) end)
+TutBtn.MouseLeave:Connect(function() tw(TutBtn,fast,{BackgroundColor3=Color3.fromRGB(20,35,80)}) end)
+
+local KeyRow=new("Frame",{
+    Size=UDim2.new(1,-24,0,34),Position=UDim2.new(0,12,0,76),
+    BackgroundColor3=C.BG,ZIndex=11,
+},Panel)
+corner(KeyRow,8); stroke(KeyRow,C.BORDER,1)
+local KeyBox=new("TextBox",{
+    Size=UDim2.new(1,-76,1,0),Position=UDim2.new(0,10,0,0),
+    BackgroundTransparency=1,TextColor3=C.TEXT,
+    PlaceholderText="gsk_xxxxxxxxxxxxxxxxxxxxxxxx",PlaceholderColor3=C.DIMTEXT,Text="",
+    Font=Enum.Font.Code,TextSize=11,
+    TextXAlignment=Enum.TextXAlignment.Left,ClearTextOnFocus=false,ZIndex=12,
+},KeyRow)
+local ShowKeyBtn=new("TextButton",{
+    Size=UDim2.new(0,60,0,24),Position=UDim2.new(1,-66,0.5,-12),
+    BackgroundColor3=Color3.fromRGB(25,35,70),Text="SHOW",
+    Font=Enum.Font.GothamBold,TextSize=10,TextColor3=C.ACCENT,AutoButtonColor=false,ZIndex=12,
+},KeyRow)
+corner(ShowKeyBtn,6)
+ShowKeyBtn.MouseButton1Click:Connect(function()
+    local vis=ShowKeyBtn.Text=="SHOW"; ShowKeyBtn.Text=vis and "HIDE" or "SHOW"
+    KeyBox.TextColor3=vis and C.ACCENT or C.TEXT
+end)
+local KeySavedLbl=new("TextLabel",{
+    Size=UDim2.new(1,-24,0,14),Position=UDim2.new(0,12,0,114),
+    BackgroundTransparency=1,Text="",Font=Enum.Font.GothamSemibold,TextSize=10,
+    TextColor3=C.GREEN,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=11,
+},Panel)
+KeyBox.FocusLost:Connect(function()
+    if KeyBox.Text~="" then
+        KeySavedLbl.Text="✓ Key saved"
+        task.delay(2,function() if not isShutdown and KeySavedLbl.Parent then KeySavedLbl.Text="" end end)
+    end
+end)
+
+-- ── MODEL DROPDOWN ────────────────────────────────────────
+sectionLabel("AI MODEL",132)
+local ModelBtn=new("TextButton",{
+    Size=UDim2.new(1,-24,0,34),Position=UDim2.new(0,12,0,148),
+    BackgroundColor3=C.BG,Text="",AutoButtonColor=false,ZIndex=11,
+},Panel)
+corner(ModelBtn,8); stroke(ModelBtn,C.BORDER,1)
+local ModelName=new("TextLabel",{
+    Size=UDim2.new(1,-120,1,0),Position=UDim2.new(0,10,0,0),
+    BackgroundTransparency=1,Text=MODELS[1].label,
+    Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=C.TEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12,
+},ModelBtn)
+local ModelSmart=new("TextLabel",{
+    Size=UDim2.new(0,110,1,0),Position=UDim2.new(1,-118,0,0),
+    BackgroundTransparency=1,Text=MODELS[1].smart,
+    Font=Enum.Font.Gotham,TextSize=10,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Right,ZIndex=12,
+},ModelBtn)
+local DropArrow=new("TextLabel",{
+    Size=UDim2.new(0,20,1,0),Position=UDim2.new(1,-24,0,0),
+    BackgroundTransparency=1,Text="▾",Font=Enum.Font.GothamBold,TextSize=14,
+    TextColor3=C.ACCENT,TextXAlignment=Enum.TextXAlignment.Center,ZIndex=12,
+},ModelBtn)
+local DropList=new("Frame",{
+    Size=UDim2.new(1,-24,0,0),Position=UDim2.new(0,12,0,184),
+    BackgroundColor3=C.DROPDOWN,ClipsDescendants=true,Visible=false,ZIndex=50,
+},Panel)
+corner(DropList,8); stroke(DropList,C.BORDER,1)
+new("UIListLayout",{Padding=UDim.new(0,0),SortOrder=Enum.SortOrder.LayoutOrder},DropList)
+local dropOpen=false
+local ITEM_H=36; local DROP_H=#MODELS*ITEM_H
+for i,model in ipairs(MODELS) do
+    local Item=new("TextButton",{
+        Size=UDim2.new(1,0,0,ITEM_H),BackgroundColor3=C.DROPDOWN,
+        Text="",AutoButtonColor=false,LayoutOrder=i,ZIndex=51,
+    },DropList)
+    new("TextLabel",{
+        Size=UDim2.new(1,-120,1,0),Position=UDim2.new(0,10,0,0),
+        BackgroundTransparency=1,Text=model.label,Font=Enum.Font.GothamSemibold,
+        TextSize=13,TextColor3=C.TEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=52,
+    },Item)
+    new("TextLabel",{
+        Size=UDim2.new(0,110,1,0),Position=UDim2.new(1,-118,0,0),
+        BackgroundTransparency=1,Text=model.smart,Font=Enum.Font.Gotham,
+        TextSize=10,TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Right,ZIndex=52,
+    },Item)
+    if i<#MODELS then
+        new("Frame",{Size=UDim2.new(1,-20,0,1),Position=UDim2.new(0,10,1,-1),
+            BackgroundColor3=Color3.fromRGB(35,45,90),BorderSizePixel=0,ZIndex=52},Item)
+    end
+    Item.MouseEnter:Connect(function() tw(Item,fast,{BackgroundColor3=Color3.fromRGB(22,28,55)}) end)
+    Item.MouseLeave:Connect(function() tw(Item,fast,{BackgroundColor3=C.DROPDOWN}) end)
+    Item.MouseButton1Click:Connect(function()
+        selectedModel=model.id; ModelName.Text=model.label; ModelSmart.Text=model.smart
+        dropOpen=false; DropArrow.Text="▾"
+        tw(DropList,fast,{Size=UDim2.new(1,-24,0,0)})
+        task.delay(0.2,function() if not dropOpen then DropList.Visible=false end end)
+    end)
+end
+ModelBtn.MouseButton1Click:Connect(function()
+    dropOpen=not dropOpen
+    if dropOpen then
+        DropList.Visible=true; DropList.Size=UDim2.new(1,-24,0,0)
+        tw(DropList,spring,{Size=UDim2.new(1,-24,0,DROP_H)}); DropArrow.Text="▴"
+    else
+        DropArrow.Text="▾"; tw(DropList,fast,{Size=UDim2.new(1,-24,0,0)})
+        task.delay(0.2,function() if not dropOpen then DropList.Visible=false end end)
+    end
+end)
+
+-- ── TOGGLE BUILDER ────────────────────────────────────────
+local function makeToggle(track,thumb,onColor,onFn,offFn)
+    local state=false
+    track.InputBegan:Connect(function(inp)
+        if inp.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+        state=not state
+        if state then
+            tw(track,fast,{BackgroundColor3=onColor})
+            tw(thumb,fast,{Position=UDim2.new(0,23,0.5,-9),BackgroundColor3=C.ACCENT})
+            if onFn then onFn() end
+        else
+            tw(track,fast,{BackgroundColor3=Color3.fromRGB(35,45,90)})
+            tw(thumb,fast,{Position=UDim2.new(0,3,0.5,-9),BackgroundColor3=C.DIMTEXT})
+            if offFn then offFn() end
+        end
+    end)
+    return function() return state end
+end
+
+local BASE_Y=200
+
+-- ── AUTO-RESPOND ──────────────────────────────────────────
+sectionLabel("AUTO-RESPOND",BASE_Y)
+local AutoRow=new("Frame",{
+    Size=UDim2.new(1,-24,0,38),Position=UDim2.new(0,12,0,BASE_Y+16),
+    BackgroundColor3=C.BG,ZIndex=11,
+},Panel)
+corner(AutoRow,8); stroke(AutoRow,Color3.fromRGB(35,45,90),1)
+new("TextLabel",{
+    Size=UDim2.new(0,120,1,0),Position=UDim2.new(0,10,0,0),
+    BackgroundTransparency=1,Text="Auto-Respond",Font=Enum.Font.GothamSemibold,
+    TextSize=13,TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12,
+},AutoRow)
+local AutoTrack=new("Frame",{Size=UDim2.new(0,44,0,24),Position=UDim2.new(0,134,0.5,-12),BackgroundColor3=Color3.fromRGB(35,45,90),ZIndex=12},AutoRow)
+new("UICorner",{CornerRadius=UDim.new(1,0)},AutoTrack)
+local AutoThumb=new("Frame",{Size=UDim2.new(0,18,0,18),Position=UDim2.new(0,3,0.5,-9),BackgroundColor3=C.DIMTEXT,ZIndex=13},AutoTrack)
+new("UICorner",{CornerRadius=UDim.new(1,0)},AutoThumb)
+new("TextLabel",{
+    Size=UDim2.new(0,52,1,0),Position=UDim2.new(0,194,0,0),
+    BackgroundTransparency=1,Text="Trigger:",Font=Enum.Font.GothamSemibold,
+    TextSize=12,TextColor3=C.DIMTEXT,ZIndex=12,
+},AutoRow)
+local TriggerBox=new("TextBox",{
+    Size=UDim2.new(0,80,0,24),Position=UDim2.new(0,248,0.5,-12),
+    BackgroundColor3=Color3.fromRGB(10,12,22),TextColor3=C.TEXT,
+    PlaceholderText="!ai",PlaceholderColor3=C.DIMTEXT,Text="!ai",
+    Font=Enum.Font.GothamSemibold,TextSize=12,ClearTextOnFocus=false,ZIndex=12,
+},AutoRow)
+corner(TriggerBox,6); stroke(TriggerBox,C.BORDER,1)
+
+-- ── OPTIONS ───────────────────────────────────────────────
+local OPT_Y=BASE_Y+66
+sectionLabel("OPTIONS",OPT_Y)
+local OptRow=new("Frame",{
+    Size=UDim2.new(1,-24,0,160),Position=UDim2.new(0,12,0,OPT_Y+16),
+    BackgroundColor3=C.BG,ZIndex=11,
+},Panel)
+corner(OptRow,8); stroke(OptRow,Color3.fromRGB(35,45,90),1)
+local function optDiv(y)
+    new("Frame",{Size=UDim2.new(1,-20,0,1),Position=UDim2.new(0,10,0,y),
+        BackgroundColor3=Color3.fromRGB(35,45,90),BorderSizePixel=0,ZIndex=12},OptRow)
+end
+-- send to chat
+new("TextLabel",{Size=UDim2.new(1,-70,0,38),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,
+    Text="Send reply to game chat",Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12},OptRow)
+local SendTrack=new("Frame",{Size=UDim2.new(0,44,0,24),Position=UDim2.new(1,-54,0,7),BackgroundColor3=Color3.fromRGB(35,45,90),ZIndex=12},OptRow)
+new("UICorner",{CornerRadius=UDim.new(1,0)},SendTrack)
+local SendThumb=new("Frame",{Size=UDim2.new(0,18,0,18),Position=UDim2.new(0,3,0.5,-9),BackgroundColor3=C.DIMTEXT,ZIndex=13},SendTrack)
+new("UICorner",{CornerRadius=UDim.new(1,0)},SendThumb); optDiv(38)
+-- respond all
+new("TextLabel",{Size=UDim2.new(1,-70,0,38),Position=UDim2.new(0,10,0,40),BackgroundTransparency=1,
+    Text="Respond to ALL messages",Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12},OptRow)
+local AllTrack=new("Frame",{Size=UDim2.new(0,44,0,24),Position=UDim2.new(1,-54,0,47),BackgroundColor3=Color3.fromRGB(35,45,90),ZIndex=12},OptRow)
+new("UICorner",{CornerRadius=UDim.new(1,0)},AllTrack)
+local AllThumb=new("Frame",{Size=UDim2.new(0,18,0,18),Position=UDim2.new(0,3,0.5,-9),BackgroundColor3=C.DIMTEXT,ZIndex=13},AllTrack)
+new("UICorner",{CornerRadius=UDim.new(1,0)},AllThumb); optDiv(78)
+-- respond self
+new("TextLabel",{Size=UDim2.new(1,-70,0,38),Position=UDim2.new(0,10,0,80),BackgroundTransparency=1,
+    Text="Respond to my own messages",Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12},OptRow)
+local SelfTrack=new("Frame",{Size=UDim2.new(0,44,0,24),Position=UDim2.new(1,-54,0,87),BackgroundColor3=Color3.fromRGB(35,45,90),ZIndex=12},OptRow)
+new("UICorner",{CornerRadius=UDim.new(1,0)},SelfTrack)
+local SelfThumb=new("Frame",{Size=UDim2.new(0,18,0,18),Position=UDim2.new(0,3,0.5,-9),BackgroundColor3=C.DIMTEXT,ZIndex=13},SelfTrack)
+new("UICorner",{CornerRadius=UDim.new(1,0)},SelfThumb); optDiv(118)
+-- clear memory
+new("TextLabel",{Size=UDim2.new(1,-120,0,38),Position=UDim2.new(0,10,0,120),BackgroundTransparency=1,
+    Text="Clear all memory",Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=12},OptRow)
+local ClearMemBtn=new("TextButton",{
+    Size=UDim2.new(0,60,0,24),Position=UDim2.new(1,-70,0,127),
+    BackgroundColor3=Color3.fromRGB(40,20,20),Text="CLEAR",
+    Font=Enum.Font.GothamBold,TextSize=10,TextColor3=C.RED,AutoButtonColor=false,ZIndex=12,
+},OptRow)
+corner(ClearMemBtn,6)
+ClearMemBtn.MouseButton1Click:Connect(function()
+    conversationHistory={}
+    task.defer(function() addLog("","All conversation memory cleared.","sys") end)
+end)
+
+-- ── SYSTEM PROMPT ─────────────────────────────────────────
+local SYS_Y=OPT_Y+194
+sectionLabel("SYSTEM PROMPT",SYS_Y)
+local SysBox=new("TextBox",{
+    Size=UDim2.new(1,-24,0,52),Position=UDim2.new(0,12,0,SYS_Y+16),
+    BackgroundColor3=C.BG,TextColor3=C.TEXT,
+    PlaceholderText="You are a helpful Roblox assistant...",
+    PlaceholderColor3=C.DIMTEXT,
+    Text="You are a helpful Roblox assistant. Keep replies short, casual, and under 150 characters.",
+    Font=Enum.Font.Gotham,TextSize=12,MultiLine=true,TextWrapped=true,
+    TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,
+    ClearTextOnFocus=false,ZIndex=11,
+},Panel)
+corner(SysBox,8); stroke(SysBox,C.BORDER,1)
+new("UIPadding",{PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8),PaddingTop=UDim.new(0,6),PaddingBottom=UDim.new(0,6)},SysBox)
+-- Live indicator that system prompt is active
+local SysActiveLbl=new("TextLabel",{
+    Size=UDim2.new(1,-24,0,12),Position=UDim2.new(0,12,0,SYS_Y+70),
+    BackgroundTransparency=1,Text="📃 System prompt is live — edits apply instantly",
+    Font=Enum.Font.Gotham,TextSize=9,TextColor3=C.GREEN,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=11,
+},Panel)
+
+-- ── LOG ───────────────────────────────────────────────────
+local LOG_Y=SYS_Y+86
+sectionLabel("CONVERSATION LOG",LOG_Y)
+local ClearBtn=new("TextButton",{
+    Size=UDim2.new(0,44,0,14),Position=UDim2.new(1,-56,0,LOG_Y+2),
+    BackgroundColor3=Color3.fromRGB(40,20,20),Text="CLEAR",
+    Font=Enum.Font.GothamBold,TextSize=9,TextColor3=C.RED,AutoButtonColor=false,ZIndex=11,
+},Panel)
+corner(ClearBtn,4)
+local LogScroll=new("ScrollingFrame",{
+    Size=UDim2.new(1,-24,0,150),Position=UDim2.new(0,12,0,LOG_Y+18),
+    BackgroundColor3=C.BG,BorderSizePixel=0,
+    ScrollBarThickness=3,ScrollBarImageColor3=C.ACCENT,
+    CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=11,
+},Panel)
+corner(LogScroll,8); stroke(LogScroll,C.BORDER,1)
+new("UIListLayout",{Padding=UDim.new(0,4),SortOrder=Enum.SortOrder.LayoutOrder},LogScroll)
+new("UIPadding",{PaddingLeft=UDim.new(0,6),PaddingRight=UDim.new(0,6),PaddingTop=UDim.new(0,6),PaddingBottom=UDim.new(0,6)},LogScroll)
+
+-- ── TRANSCRIPT BUTTON ─────────────────────────────────────
+local TX_BTN_Y=LOG_Y+18+150+6
+local TxBtn=new("TextButton",{
+    Size=UDim2.new(1,-24,0,30),Position=UDim2.new(0,12,0,TX_BTN_Y),
+    BackgroundColor3=Color3.fromRGB(14,20,45),Text="📋  TRANSCRIPTS",
+    Font=Enum.Font.GothamBold,TextSize=12,TextColor3=C.ACCENT,AutoButtonColor=false,ZIndex=11,
+},Panel)
+corner(TxBtn,8); stroke(TxBtn,C.ACCENT,1)
+TxBtn.MouseEnter:Connect(function() tw(TxBtn,fast,{BackgroundColor3=Color3.fromRGB(22,30,70)}) end)
+TxBtn.MouseLeave:Connect(function() tw(TxBtn,fast,{BackgroundColor3=Color3.fromRGB(14,20,45)}) end)
+
+-- ── FOOTER ────────────────────────────────────────────────
+local FooterBar=new("Frame",{Size=UDim2.new(1,0,0,28),Position=UDim2.new(0,0,1,-28),BackgroundColor3=C.BG,ZIndex=12},Panel)
+new("Frame",{Size=UDim2.new(1,0,0,14),BackgroundColor3=C.BG,BorderSizePixel=0,ZIndex=12},FooterBar)
+new("UICorner",{CornerRadius=UDim.new(0,14)},FooterBar)
+local FooterText=new("TextLabel",{
+    Size=UDim2.new(1,-16,1,0),Position=UDim2.new(0,8,0,0),
+    BackgroundTransparency=1,Text="Enter your Groq API key to get started.",
+    Font=Enum.Font.Gotham,TextSize=11,TextColor3=C.DIMTEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=13,
+},FooterBar)
+
+local PANEL_H=TX_BTN_Y+30+36
+
+-- ══════════════════════════════════════════════════════════
+--  TRANSCRIPT PANEL
+-- ══════════════════════════════════════════════════════════
+local TxPanel=new("Frame",{
+    Size=UDim2.new(0,370,0,0),Position=UDim2.new(1,-810,0,80),
+    BackgroundColor3=C.PANEL,ClipsDescendants=true,Visible=false,ZIndex=30,
+},Gui)
+new("UICorner",{CornerRadius=UDim.new(0,14)},TxPanel)
+stroke(TxPanel,C.ACCENT2,1.5)
+grad(TxPanel,Color3.fromRGB(16,14,32),Color3.fromRGB(10,10,22),160)
+local TxHeader=new("Frame",{Size=UDim2.new(1,0,0,52),BackgroundColor3=C.BG,ZIndex=31},TxPanel)
+new("UICorner",{CornerRadius=UDim.new(0,14)},TxHeader)
+new("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.BG,BorderSizePixel=0,ZIndex=31},TxHeader)
+local TxLine=new("Frame",{Size=UDim2.new(1,0,0,2),BackgroundColor3=C.ACCENT2,ZIndex=32},TxHeader)
+grad(TxLine,C.ACCENT2,C.ACCENT,0)
+new("TextLabel",{Size=UDim2.new(1,-60,1,0),Position=UDim2.new(0,14,0,0),BackgroundTransparency=1,
+    Text="📋 Transcripts",Font=Enum.Font.GothamBold,TextSize=15,TextColor3=C.TEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,ZIndex=33},TxHeader)
+local TxCloseBtn=new("TextButton",{
+    Size=UDim2.new(0,28,0,28),Position=UDim2.new(1,-36,0.5,-14),
+    BackgroundColor3=Color3.fromRGB(20,20,40),Text="X",
+    Font=Enum.Font.GothamBold,TextSize=13,TextColor3=C.DIMTEXT,AutoButtonColor=false,ZIndex=34,
+},TxHeader)
+corner(TxCloseBtn,6)
+local NewTxBtn=new("TextButton",{
+    Size=UDim2.new(1,-24,0,36),Position=UDim2.new(0,12,0,60),
+    BackgroundColor3=Color3.fromRGB(20,40,90),Text="＋  Snapshot Current Log as New Transcript",
+    Font=Enum.Font.GothamBold,TextSize=12,TextColor3=C.GREEN,AutoButtonColor=false,ZIndex=31,
+},TxPanel)
+corner(NewTxBtn,8); stroke(NewTxBtn,C.GREEN,1)
+NewTxBtn.MouseEnter:Connect(function() tw(NewTxBtn,fast,{BackgroundColor3=Color3.fromRGB(25,55,110)}) end)
+NewTxBtn.MouseLeave:Connect(function() tw(NewTxBtn,fast,{BackgroundColor3=Color3.fromRGB(20,40,90)}) end)
+new("TextLabel",{Size=UDim2.new(1,-24,0,14),Position=UDim2.new(0,12,0,102),BackgroundTransparency=1,
+    Text="SAVED TRANSCRIPTS",Font=Enum.Font.GothamBold,TextSize=9,
+    TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31},TxPanel)
+local TxListScroll=new("ScrollingFrame",{
+    Size=UDim2.new(1,-24,0,300),Position=UDim2.new(0,12,0,118),
+    BackgroundColor3=C.BG,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=C.ACCENT2,
+    CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=31,
+},TxPanel)
+corner(TxListScroll,8); stroke(TxListScroll,Color3.fromRGB(40,30,80),1)
+new("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},TxListScroll)
+new("UIPadding",{PaddingLeft=UDim.new(0,6),PaddingRight=UDim.new(0,6),PaddingTop=UDim.new(0,6),PaddingBottom=UDim.new(0,6)},TxListScroll)
+local TxStatusLbl=new("TextLabel",{
+    Size=UDim2.new(1,-24,0,30),Position=UDim2.new(0,12,0,426),
+    BackgroundTransparency=1,Text="No transcripts yet. Click above to snapshot.",
+    Font=Enum.Font.Gotham,TextSize=11,TextColor3=C.DIMTEXT,TextWrapped=true,
+    TextXAlignment=Enum.TextXAlignment.Center,ZIndex=31,
+},TxPanel)
+local TX_PANEL_H=464
+
+-- ── VIEW PANEL ────────────────────────────────────────────
+local ViewPanel=new("Frame",{
+    Size=UDim2.new(0,370,0,0),Position=UDim2.new(1,-810,0,80),
+    BackgroundColor3=C.PANEL,ClipsDescendants=true,Visible=false,ZIndex=40,
+},Gui)
+new("UICorner",{CornerRadius=UDim.new(0,14)},ViewPanel)
+stroke(ViewPanel,C.YELLOW,1.5)
+local ViewHeader=new("Frame",{Size=UDim2.new(1,0,0,52),BackgroundColor3=C.BG,ZIndex=41},ViewPanel)
+new("UICorner",{CornerRadius=UDim.new(0,14)},ViewHeader)
+new("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=C.BG,BorderSizePixel=0,ZIndex=41},ViewHeader)
+new("Frame",{Size=UDim2.new(1,0,0,2),BackgroundColor3=C.YELLOW,ZIndex=42},ViewHeader)
+local ViewTitleLbl=new("TextLabel",{
+    Size=UDim2.new(1,-80,1,0),Position=UDim2.new(0,14,0,0),
+    BackgroundTransparency=1,Text="Transcript",Font=Enum.Font.GothamBold,TextSize=14,TextColor3=C.TEXT,
+    TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=43,
+},ViewHeader)
+local ViewBackBtn=new("TextButton",{
+    Size=UDim2.new(0,28,0,28),Position=UDim2.new(1,-36,0.5,-14),
+    BackgroundColor3=Color3.fromRGB(20,20,40),Text="←",
+    Font=Enum.Font.GothamBold,TextSize=14,TextColor3=C.ACCENT2,AutoButtonColor=false,ZIndex=44,
+},ViewHeader)
+corner(ViewBackBtn,6)
+local CopyRow=new("Frame",{Size=UDim2.new(1,-24,0,36),Position=UDim2.new(0,12,0,60),BackgroundColor3=C.BG,ZIndex=41},ViewPanel)
+corner(CopyRow,8); stroke(CopyRow,C.YELLOW,1)
+new("TextLabel",{Size=UDim2.new(0,200,1,0),Position=UDim2.new(0,10,0,0),
+    BackgroundTransparency=1,Text="Copy link → paste in browser",
+    Font=Enum.Font.Gotham,TextSize=11,TextColor3=C.YELLOW,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=42},CopyRow)
+local CopyBtn=new("TextButton",{
+    Size=UDim2.new(0,80,0,24),Position=UDim2.new(1,-88,0.5,-12),
+    BackgroundColor3=Color3.fromRGB(50,45,15),Text="📋 COPY",
+    Font=Enum.Font.GothamBold,TextSize=11,TextColor3=C.YELLOW,AutoButtonColor=false,ZIndex=42,
+},CopyRow)
+corner(CopyBtn,6)
+local ViewScroll=new("ScrollingFrame",{
+    Size=UDim2.new(1,-24,0,340),Position=UDim2.new(0,12,0,104),
+    BackgroundColor3=C.BG,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=C.YELLOW,
+    CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=41,
+},ViewPanel)
+corner(ViewScroll,8); stroke(ViewScroll,Color3.fromRGB(60,50,20),1)
+new("UIListLayout",{Padding=UDim.new(0,4),SortOrder=Enum.SortOrder.LayoutOrder},ViewScroll)
+new("UIPadding",{PaddingLeft=UDim.new(0,6),PaddingRight=UDim.new(0,6),PaddingTop=UDim.new(0,6),PaddingBottom=UDim.new(0,6)},ViewScroll)
+local VIEW_PANEL_H=460
+local currentDataURI=""
+
+-- ══════════════════════════════════════════════════════════
+--  TUTORIAL SYSTEM
+-- ══════════════════════════════════════════════════════════
+
+-- Tutorial steps definition
+-- Each step: { title, body, link (optional), highlight (GuiObject or nil), side ("left"/"right"/"bottom") }
+local tutorialActive = false
+local tutStep = 0
+
+local TUTORIAL_STEPS = {
+    {
+        title = "Welcome to Groq Chat Responder!",
+        body = "This tool lets an AI automatically reply to Roblox chat messages in real time using Groq's free API.\n\nLet's walk you through setup in 6 quick steps.",
+        link = nil,
+        highlight = nil,
+        side = "center",
+    },
+    {
+        title = "Step 1 — Go to console.groq.com",
+        body = "First, open your browser and visit console.groq.com\n\nGroq is completely FREE to sign up. Click the link below to open it.",
+        link = "https://console.groq.com",
+        linkLabel = "🔗 Open console.groq.com",
+        highlight = nil,
+        side = "center",
+        image = "https://i.imgur.com/3NjB7aQ.png",
+        imageCaption = "The Groq Console homepage — click 'Sign Up' or 'Log In'",
+    },
+    {
+        title = "Step 2 — Create a free account",
+        body = "Click 'Sign Up' on the Groq console. You can sign up with:\n• Google\n• GitHub\n• Email\n\nIt only takes about 30 seconds. No credit card needed.",
+        link = "https://console.groq.com/login",
+        linkLabel = "🔗 Sign up / Log in",
+        highlight = nil,
+        side = "center",
+        image = "https://i.imgur.com/mVXkHpn.png",
+        imageCaption = "Groq's login/signup page — choose any method",
+    },
+    {
+        title = "Step 3 — Create an API Key",
+        body = "Once logged in, go to the 'API Keys' section in the left sidebar.\n\nClick '+ Create API Key', give it any name (e.g. 'Roblox'), then copy the key that appears.\n\n⚠️ Save it — Groq only shows it once!",
+        link = "https://console.groq.com/keys",
+        linkLabel = "🔗 Go to API Keys page",
+        highlight = nil,
+        side = "center",
+        image = "https://i.imgur.com/QZl6gNz.png",
+        imageCaption = "Click 'API Keys' in the sidebar → '+ Create API Key'",
+    },
+    {
+        title = "Step 4 — Paste your key here",
+        body = "Paste the key you copied into the API Key box below (starts with gsk_...).\n\nClick SHOW to verify it looks right.",
+        link = nil,
+        highlight = "KeyRow",
+        side = "bottom",
+    },
+    {
+        title = "Step 5 — Pick an AI model",
+        body = "Click the model selector to choose which AI responds.\n\n• Kimi K2 / GPT-OSS 120B = smartest\n• Llama 4 Maverick = fast + smart\n• Llama 3.1 8B = fastest, lightest\n\nStart with Kimi K2 — it's the best.",
+        link = nil,
+        highlight = "ModelBtn",
+        side = "bottom",
+    },
+    {
+        title = "Step 6 — Enable Auto-Respond",
+        body = "Flip the Auto-Respond toggle ON to start.\n\nBy default the trigger word is '!ai' — so players must type '!ai' before their message to get a reply.\n\nToggle 'Respond to ALL' to reply to every message instead.",
+        link = nil,
+        highlight = "AutoRow",
+        side = "bottom",
+    },
+    {
+        title = "Conversation Log",
+        body = "This is where all chat logs are stored while the script is running.\n\nEvery message players send and every AI reply will appear here in real time.\n\nUse the TRANSCRIPTS button below the log to snapshot and save logs at any time.",
+        link = nil,
+        highlight = "LogScroll",
+        side = "bottom",
+    },
+    {
+        title = "You're all set!",
+        body = "That's everything!\n\nQuick summary:\n- API key pasted\n- Model chosen\n- Auto-Respond toggled on\n\nHit the robot button any time to show/hide this panel. Click X to fully shut down.",
+        link = nil,
+        highlight = nil,
+        side = "center",
+    },
+}
+
+-- Highlight target lookup (maps string -> GuiObject)
+-- Populated after UI elements are created
+local TUT_HIGHLIGHTS = {}  -- filled below
+
+-- ── TUTORIAL UI ───────────────────────────────────────────
+
+-- Dark overlay (blocks interaction with rest of UI)
+local TutOverlay = new("Frame",{
+    Size=UDim2.new(1,0,1,0),Position=UDim2.new(0,0,0,0),
+    BackgroundColor3=Color3.fromRGB(0,0,0),BackgroundTransparency=1,
+    ZIndex=100,Visible=false,
+},Gui)
+
+-- Spotlight frame (visual glow around highlighted element)
+local TutSpot = new("Frame",{
+    Size=UDim2.new(0,100,0,40),Position=UDim2.new(0,0,0,0),
+    BackgroundTransparency=1,ZIndex=102,Visible=false,
+},Gui)
+local TutSpotStroke = stroke(TutSpot,C.YELLOW,3)
+corner(TutSpot,10)
+-- animated glow
+local spotGlowThread = nil
+
+-- Tutorial card
+local TutCard = new("Frame",{
+    Size=UDim2.new(0,320,0,10),Position=UDim2.new(0.5,-160,0.5,-80),
+    BackgroundColor3=Color3.fromRGB(12,14,26),ZIndex=103,Visible=false,
+},Gui)
+new("UICorner",{CornerRadius=UDim.new(0,12)},TutCard)
+stroke(TutCard,C.YELLOW,2)
+
+-- Card header
+local TutCardHeader = new("Frame",{
+    Size=UDim2.new(1,0,0,40),BackgroundColor3=Color3.fromRGB(18,15,35),ZIndex=104,
+},TutCard)
+new("UICorner",{CornerRadius=UDim.new(0,12)},TutCardHeader)
+new("Frame",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,0,1,-14),BackgroundColor3=Color3.fromRGB(18,15,35),BorderSizePixel=0,ZIndex=104},TutCardHeader)
+local TutHdrLine=new("Frame",{Size=UDim2.new(1,0,0,2),BackgroundColor3=C.YELLOW,ZIndex=105},TutCardHeader)
+grad(TutHdrLine,C.YELLOW,C.ORANGE,0)
+local TutStepLbl=new("TextLabel",{
+    Size=UDim2.new(0,60,1,0),Position=UDim2.new(0,10,0,0),
+    BackgroundTransparency=1,Text="1 / 9",Font=Enum.Font.GothamBold,TextSize=10,
+    TextColor3=C.ORANGE,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=106,
+},TutCardHeader)
+local TutTitleLbl=new("TextLabel",{
+    Size=UDim2.new(1,-120,1,0),Position=UDim2.new(0,72,0,0),
+    BackgroundTransparency=1,Text="Tutorial",Font=Enum.Font.GothamBold,TextSize=13,
+    TextColor3=C.TEXT,TextXAlignment=Enum.TextXAlignment.Left,
+    TextWrapped=false,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=106,
+},TutCardHeader)
+local TutSkipBtn=new("TextButton",{
+    Size=UDim2.new(0,52,0,24),Position=UDim2.new(1,-58,0.5,-12),
+    BackgroundColor3=Color3.fromRGB(40,20,20),Text="SKIP",
+    Font=Enum.Font.GothamBold,TextSize=10,TextColor3=C.RED,AutoButtonColor=false,ZIndex=106,
+},TutCardHeader)
+corner(TutSkipBtn,6); stroke(TutSkipBtn,C.RED,1)
+
+-- Card body scroll (for long text + optional image)
+local TutBodyScroll=new("ScrollingFrame",{
+    Size=UDim2.new(1,-16,0,120),Position=UDim2.new(0,8,0,48),
+    BackgroundTransparency=1,BorderSizePixel=0,
+    ScrollBarThickness=2,ScrollBarImageColor3=C.YELLOW,
+    CanvasSize=UDim2.new(0,0,0,0),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=104,
+},TutCard)
+new("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder},TutBodyScroll)
+
+local TutBodyLbl=new("TextLabel",{
+    Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundTransparency=1,Text="",Font=Enum.Font.Gotham,TextSize=12,
+    TextColor3=C.TEXT,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true,
+    LayoutOrder=1,ZIndex=105,
+},TutBodyScroll)
+
+-- Image frame inside card
+local TutImgFrame=new("Frame",{
+    Size=UDim2.new(1,0,0,80),BackgroundColor3=Color3.fromRGB(8,10,20),
+    LayoutOrder=2,ZIndex=105,Visible=false,
+},TutBodyScroll)
+corner(TutImgFrame,8); stroke(TutImgFrame,Color3.fromRGB(40,40,80),1)
+local TutImg=new("ImageLabel",{
+    Size=UDim2.new(1,-4,1,-20),Position=UDim2.new(0,2,0,2),
+    BackgroundTransparency=1,ScaleType=Enum.ScaleType.Fit,ZIndex=106,
+},TutImgFrame)
+local TutImgCaption=new("TextLabel",{
+    Size=UDim2.new(1,0,0,16),Position=UDim2.new(0,0,1,-18),
+    BackgroundTransparency=1,Text="",Font=Enum.Font.Gotham,TextSize=9,
+    TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Center,ZIndex=107,
+},TutImgFrame)
+
+-- Link button inside card
+local TutLinkBtn=new("TextButton",{
+    Size=UDim2.new(1,0,0,28),BackgroundColor3=Color3.fromRGB(20,35,80),
+    Text="🔗 Open link",Font=Enum.Font.GothamBold,TextSize=11,TextColor3=C.ACCENT,
+    AutoButtonColor=false,LayoutOrder=3,ZIndex=105,Visible=false,
+},TutBodyScroll)
+corner(TutLinkBtn,6); stroke(TutLinkBtn,C.ACCENT,1)
+TutLinkBtn.MouseEnter:Connect(function() tw(TutLinkBtn,fast,{BackgroundColor3=Color3.fromRGB(30,50,120)}) end)
+TutLinkBtn.MouseLeave:Connect(function() tw(TutLinkBtn,fast,{BackgroundColor3=Color3.fromRGB(20,35,80)}) end)
+local tutCurrentLink=""
+TutLinkBtn.MouseButton1Click:Connect(function()
+    if tutCurrentLink~="" then
+        -- Copy to clipboard and show message
+        local ok=pcall(function()
+            if setclipboard then setclipboard(tutCurrentLink)
+            elseif Clipboard then Clipboard.set(tutCurrentLink) end
+        end)
+        if ok then
+            TutLinkBtn.Text="✓ Copied to clipboard! Paste in browser"
+            TutLinkBtn.TextColor3=C.GREEN
+            task.delay(3,function()
+                if TutLinkBtn.Parent then
+                    TutLinkBtn.Text=tutCurrentLink~="" and "🔗 "..tutCurrentLink or "🔗 Open link"
+                    TutLinkBtn.TextColor3=C.ACCENT
+                end
+            end)
+        else
+            TutLinkBtn.Text="⚠ Manually visit: "..tutCurrentLink
+        end
+    end
+end)
+
+-- Card footer buttons
+local TutFooter=new("Frame",{
+    Size=UDim2.new(1,0,0,40),Position=UDim2.new(0,0,1,-40),
+    BackgroundColor3=Color3.fromRGB(14,10,28),ZIndex=104,
+},TutCard)
+new("UICorner",{CornerRadius=UDim.new(0,12)},TutFooter)
+new("Frame",{Size=UDim2.new(1,0,0,14),BackgroundColor3=Color3.fromRGB(14,10,28),BorderSizePixel=0,ZIndex=104},TutFooter)
+local TutPrevBtn=new("TextButton",{
+    Size=UDim2.new(0,80,0,26),Position=UDim2.new(0,8,0.5,-13),
+    BackgroundColor3=Color3.fromRGB(25,20,50),Text="← Back",
+    Font=Enum.Font.GothamBold,TextSize=11,TextColor3=C.DIMTEXT,AutoButtonColor=false,ZIndex=105,
+},TutFooter)
+corner(TutPrevBtn,6)
+local TutNextBtn=new("TextButton",{
+    Size=UDim2.new(0,100,0,26),Position=UDim2.new(1,-108,0.5,-13),
+    BackgroundColor3=C.YELLOW,Text="Next →",
+    Font=Enum.Font.GothamBold,TextSize=11,TextColor3=Color3.fromRGB(10,10,10),AutoButtonColor=false,ZIndex=105,
+},TutFooter)
+corner(TutNextBtn,6)
+local TutProgressBar=new("Frame",{
+    Size=UDim2.new(0,80,0,4),Position=UDim2.new(0.5,-40,0.5,-2),
+    BackgroundColor3=Color3.fromRGB(30,25,60),ZIndex=105,
+},TutFooter)
+corner(TutProgressBar,2)
+local TutProgressFill=new("Frame",{
+    Size=UDim2.new(0,0,1,0),BackgroundColor3=C.YELLOW,ZIndex=106,
+},TutProgressBar)
+corner(TutProgressFill,2)
+
+-- ── TUTORIAL ALIGNMENT ENGINE ────────────────────────────
+-- A single RenderStepped connection runs for the lifetime of one step.
+-- It re-reads AbsolutePosition/Size every frame so the spotlight and card
+-- are always pixel-perfect even if the panel animates or the viewport resizes.
+local alignConn = nil  -- current per-step RenderStepped connection
+
+local CARD_W = 320
+local CARD_H = 240
+local CARD_PAD = 28   -- gap between spotlight bottom edge and card top
+
+local function getViewport()
+    return workspace.CurrentCamera.ViewportSize
+end
+
+-- Clamp a value so the card stays fully on screen
+local function clampX(x) return math.max(4, math.min(x, getViewport().X - CARD_W - 4)) end
+local function clampY(y) return math.max(4, math.min(y, getViewport().Y - CARD_H - 4)) end
+
+local function applyPosition(step)
+    local highlight = step.highlight
+    local target    = highlight and TUT_HIGHLIGHTS[highlight]
+    local side      = step.side or "center"
+
+    if target and target.Parent and side ~= "center" then
+        local ap  = target.AbsolutePosition
+        local as  = target.AbsoluteSize
+
+        -- Guard: panel still collapsed/animating — skip this frame
+        if as.X < 10 or as.Y < 2 then return end
+
+        local vp  = getViewport()
+        local pad = 8
+
+        -- Spotlight wraps the highlighted element
+        TutSpot.Visible  = true
+        TutSpot.Position = UDim2.new(0, ap.X - pad, 0, ap.Y - pad)
+        TutSpot.Size     = UDim2.new(0, as.X + pad*2, 0, as.Y + pad*2)
+
+        -- Card goes to the left of the panel
+        local panelAP = Panel.AbsolutePosition
+        local cardX   = panelAP.X - CARD_W - 16
+        -- If not enough space on left, go right
+        if cardX < 4 then
+            cardX = panelAP.X + Panel.AbsoluteSize.X + 16
+        end
+        cardX = math.max(4, math.min(cardX, vp.X - CARD_W - 4))
+
+        -- Card Y: vertically aligned with the center of the highlighted element
+        local elemCenterY = ap.Y + as.Y * 0.5
+        local cardY = elemCenterY - CARD_H * 0.5
+        cardY = math.max(4, math.min(cardY, vp.Y - CARD_H - 4))
+
+        TutCard.Position = UDim2.new(0, cardX, 0, cardY)
+    else
+        -- No highlight: centre card on screen
+        TutSpot.Visible  = false
+        local vp = getViewport()
+        local cx = math.max(4, math.min((vp.X - CARD_W) * 0.5, vp.X - CARD_W - 4))
+        local cy = math.max(4, math.min((vp.Y - CARD_H) * 0.5, vp.Y - CARD_H - 4))
+        TutCard.Position = UDim2.new(0, cx, 0, cy)
+    end
+end
+
+local function stopAlignLoop()
+    if alignConn then alignConn:Disconnect(); alignConn = nil end
+end
+
+local function startAlignLoop(step)
+    stopAlignLoop()
+    local snapKey  = step.highlight
+    local snapSide = step.side or "center"
+    local snapInfo = snapKey and TUT_HIGHLIGHTS[snapKey]
+
+    alignConn = RunService.RenderStepped:Connect(function()
+        if not tutorialActive then stopAlignLoop(); return end
+
+        local vp  = getViewport()
+        local pad = 8
+
+        if snapInfo and snapSide ~= "center" then
+            local obj      = snapInfo.obj
+            local panelOffY = snapInfo.panelY
+            local panelAP  = Panel.AbsolutePosition
+            local panelAS  = Panel.AbsoluteSize
+
+            -- Guard: panel still collapsed
+            if panelAS.Y < 10 then return end
+
+            -- Compute element screen position from known panel-relative offset
+            -- Use AbsoluteSize from the actual object (reliable), Y from panel offset
+            local elemScreenY = panelAP.Y + panelOffY
+            local elemH       = obj.AbsoluteSize.Y
+            if elemH < 2 then elemH = 34 end  -- fallback height
+
+            local elemScreenX = panelAP.X + 12  -- elements have 12px left margin
+
+            -- Spotlight
+            TutSpot.Visible  = true
+            TutSpot.Position = UDim2.new(0, elemScreenX - pad, 0, elemScreenY - pad)
+            TutSpot.Size     = UDim2.new(0, panelAS.X - 24 + pad*2, 0, elemH + pad*2)
+
+            -- Card: left of panel (right fallback)
+            local cardX = panelAP.X - CARD_W - 16
+            if cardX < 4 then cardX = panelAP.X + panelAS.X + 16 end
+            cardX = math.max(4, math.min(cardX, vp.X - CARD_W - 4))
+
+            -- Card Y: centred on element
+            local elemCenterY = elemScreenY + elemH * 0.5
+            local cardY = math.max(4, math.min(elemCenterY - CARD_H * 0.5, vp.Y - CARD_H - 4))
+
+            TutCard.Position = UDim2.new(0, cardX, 0, cardY)
+        else
+            TutSpot.Visible = false
+            local cx = math.max(4, math.min((vp.X - CARD_W) * 0.5, vp.X - CARD_W - 4))
+            local cy = math.max(4, math.min((vp.Y - CARD_H) * 0.5, vp.Y - CARD_H - 4))
+            TutCard.Position = UDim2.new(0, cx, 0, cy)
+        end
+    end)
+end
+
+local function closeTutorial()
+    tutorialActive = false
+    stopAlignLoop()
+    tw(TutOverlay, fast, {BackgroundTransparency=1})
+    tw(TutCard,    fast, {BackgroundTransparency=1})
+    task.delay(0.2, function()
+        TutOverlay.Visible = false
+        TutCard.Visible    = false
+        TutSpot.Visible    = false
+    end)
+    if spotGlowThread then task.cancel(spotGlowThread); spotGlowThread = nil end
+end
+
+local function showTutStep(n)
+    tutStep = n
+    local step = TUTORIAL_STEPS[n]
+    if not step then closeTutorial(); return end
+
+    TutStepLbl.Text  = tostring(n).." / "..tostring(#TUTORIAL_STEPS)
+    TutTitleLbl.Text = step.title
+    TutBodyLbl.Text  = step.body
+
+    local pct = (n - 1) / (#TUTORIAL_STEPS - 1)
+    tw(TutProgressFill, fast, {Size=UDim2.new(pct, 0, 1, 0)})
+
+    if step.image then
+        TutImgFrame.Visible = true
+        TutImg.Image        = step.image
+        TutImgCaption.Text  = step.imageCaption or ""
+    else
+        TutImgFrame.Visible = false
+    end
+
+    if step.link then
+        TutLinkBtn.Visible    = true
+        TutLinkBtn.Text       = step.linkLabel or ("🔗 "..step.link)
+        TutLinkBtn.TextColor3 = C.ACCENT
+        tutCurrentLink        = step.link
+    else
+        TutLinkBtn.Visible = false
+        tutCurrentLink     = ""
+    end
+
+    TutPrevBtn.Visible = n > 1
+    if n == #TUTORIAL_STEPS then
+        TutNextBtn.Text             = "✓ Done!"
+        TutNextBtn.BackgroundColor3 = C.GREEN
+    else
+        TutNextBtn.Text             = "Next →"
+        TutNextBtn.BackgroundColor3 = C.YELLOW
+    end
+
+    TutCard.Size = UDim2.new(0, CARD_W, 0, CARD_H)
+    TutBodyScroll.CanvasPosition = Vector2.new(0, 0)
+
+    startAlignLoop(step)
+end
+
+local function startTutorial()
+    if tutorialActive then return end
+    tutorialActive = true
+
+    -- CRITICAL: cancel any in-progress tween on Panel and force it to full size
+    -- RIGHT NOW so that child AbsolutePositions are valid this frame.
+    -- We do this by stopping any running tween via a zero-duration tween,
+    -- then setting the size directly.
+    TweenService:Create(Panel, TweenInfo.new(0), {
+        Size               = UDim2.new(0, 370, 0, PANEL_H),
+        BackgroundTransparency = 0,
+    }):Play()
+    Panel.Visible = true
+    -- Also reset the toggle button colour to "open" state
+    tw(ToggleBtn, fast, {BackgroundColor3=Color3.fromRGB(30,50,120)})
+    panelOpen = true
+
+    TutOverlay.Visible             = true
+    TutOverlay.BackgroundTransparency = 0.6
+    TutCard.Visible                = true
+    TutCard.BackgroundTransparency = 0
+
+    -- Pulsing glow on spotlight border
+    if spotGlowThread then task.cancel(spotGlowThread) end
+    spotGlowThread = task.spawn(function()
+        while tutorialActive and not isShutdown do
+            tw(TutSpotStroke, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness=5, Transparency=0.4})
+            task.wait(0.8)
+            if not tutorialActive then break end
+            tw(TutSpotStroke, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness=2, Transparency=0})
+            task.wait(0.8)
+        end
+    end)
+
+    -- Wait 2 RenderStepped frames so Roblox has fully laid out the panel
+    -- and all child AbsolutePosition/Size values are correct before we read them.
+    local frameCount = 0
+    local waitConn
+    waitConn = RunService.RenderStepped:Connect(function()
+        frameCount += 1
+        if frameCount >= 2 then
+            waitConn:Disconnect()
+            if tutorialActive then
+                showTutStep(1)
+            end
+        end
+    end)
+end
+
+TutNextBtn.MouseButton1Click:Connect(function()
+    if tutStep>=#TUTORIAL_STEPS then closeTutorial()
+    else showTutStep(tutStep+1) end
+end)
+TutPrevBtn.MouseButton1Click:Connect(function()
+    if tutStep>1 then showTutStep(tutStep-1) end
+end)
+TutSkipBtn.MouseButton1Click:Connect(closeTutorial)
+TutBtn.MouseButton1Click:Connect(startTutorial)
+
+-- ══════════════════════════════════════════════════════════
+--  STATE
+-- ══════════════════════════════════════════════════════════
+local panelOpen=false; local txPanelOpen=false
+local autoRespond=false; local sendToChat=false
+local respondAll=false; local respondSelf=false
+local groqPaused=false; local groqRetryAt=0
+local logCount=0; local thinkConn=nil
+
+local messageQueue={}; local queueRunning=false
+local function queueSize() return #messageQueue end
+
+local function updateQueueBadge()
+    if isShutdown or not FooterText.Parent then return end
+    local n=queueSize()
+    if n>0 and not groqPaused then
+        FooterText.Text=n.." message"..(n==1 and "" or "s").." in queue..."
+    end
+end
+
+local function setGroqRateLimited(seconds)
+    groqPaused=true; groqRetryAt=tick()+(seconds or 60)
+    tw(StatusDot,fast,{BackgroundColor3=C.RED}); tw(StatusLbl,fast,{TextColor3=C.RED})
+    StatusLbl.Text="PAUSED"
+    local t=task.spawn(function()
+        while groqPaused and not isShutdown and Gui.Parent do
+            local r=math.ceil(groqRetryAt-tick()); if r<=0 then break end
+            if FooterText.Parent then FooterText.Text="Groq rate limited. Resuming in "..r.."s." end
+            task.wait(1)
+        end
+        if not isShutdown and Gui.Parent then
+            groqPaused=false
+            if autoRespond then
+                tw(StatusDot,fast,{BackgroundColor3=C.GREEN}); tw(StatusLbl,fast,{TextColor3=C.GREEN})
+                StatusLbl.Text="ACTIVE"
+                if FooterText.Parent then FooterText.Text="Resumed." end
+            else
+                tw(StatusDot,fast,{BackgroundColor3=Color3.fromRGB(120,130,160)}); tw(StatusLbl,fast,{TextColor3=C.DIMTEXT})
+                StatusLbl.Text="OFF"
+            end
+        end
+    end)
+    onCleanup(function() task.cancel(t) end)
+end
+
+-- Wire toggles
+makeToggle(AutoTrack,AutoThumb,Color3.fromRGB(30,60,160),
+    function() autoRespond=true; if not groqPaused then tw(StatusDot,fast,{BackgroundColor3=C.GREEN}); tw(StatusLbl,fast,{TextColor3=C.GREEN}); StatusLbl.Text="ACTIVE" end end,
+    function() autoRespond=false; tw(StatusDot,fast,{BackgroundColor3=Color3.fromRGB(120,130,160)}); tw(StatusLbl,fast,{TextColor3=C.DIMTEXT}); StatusLbl.Text="OFF" end
+)
+makeToggle(SendTrack,SendThumb,Color3.fromRGB(30,60,160),
+    function() sendToChat=true end, function() sendToChat=false end)
+makeToggle(AllTrack,AllThumb,Color3.fromRGB(180,100,20),
+    function() respondAll=true; tw(TriggerBox,fast,{TextTransparency=0.6,BackgroundColor3=Color3.fromRGB(8,9,16)}) end,
+    function() respondAll=false; tw(TriggerBox,fast,{TextTransparency=0,BackgroundColor3=Color3.fromRGB(10,12,22)}) end)
+makeToggle(SelfTrack,SelfThumb,Color3.fromRGB(100,30,160),
+    function() respondSelf=true end, function() respondSelf=false end)
+
+-- Panel open/close
+local function openPanel()
+    panelOpen=true; Panel.Visible=true
+    tw(Panel,spring,{Size=UDim2.new(0,370,0,PANEL_H),BackgroundTransparency=0})
+    tw(ToggleBtn,fast,{BackgroundColor3=Color3.fromRGB(30,50,120)})
+end
+local function closePanel()
+    panelOpen=false
+    tw(Panel,med,{Size=UDim2.new(0,370,0,0),BackgroundTransparency=1})
+    task.delay(0.36,function() if not panelOpen and not isShutdown and Panel.Parent then Panel.Visible=false end end)
+    tw(ToggleBtn,fast,{BackgroundColor3=C.PANEL})
+end
+ToggleBtn.MouseButton1Click:Connect(function() if panelOpen then closePanel() else openPanel() end end)
+ToggleBtn.MouseEnter:Connect(function() tw(ToggleBtn,fast,{BackgroundColor3=Color3.fromRGB(25,40,100)}) end)
+ToggleBtn.MouseLeave:Connect(function() if not panelOpen then tw(ToggleBtn,fast,{BackgroundColor3=C.PANEL}) end end)
+
+-- ── LOG ENTRY ─────────────────────────────────────────────
+function addLog(speaker,message,kind)
+    if isShutdown or not LogScroll.Parent then return end
+    logCount+=1
+    table.insert(liveLog,{kind=kind,speaker=speaker,message=message,time=nowLabel()})
+    local bgColor=kind=="ai" and C.MSGBG_AI or kind=="sys" and C.MSGBG_SYS or C.MSGBG_USER
+    local nameColor=kind=="ai" and C.ACCENT2 or kind=="sys" and C.ORANGE or C.ACCENT
+    local nameText=kind=="ai" and "✦ GROQ" or kind=="sys" and "⚙ SYSTEM" or "👤 "..tostring(speaker)
+    local Entry=new("Frame",{
+        Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+        BackgroundColor3=bgColor,BackgroundTransparency=1,LayoutOrder=logCount,ZIndex=12,
+    },LogScroll)
+    corner(Entry,6)
+    new("UIPadding",{PaddingLeft=UDim.new(0,7),PaddingRight=UDim.new(0,7),PaddingTop=UDim.new(0,5),PaddingBottom=UDim.new(0,5)},Entry)
+    new("UIListLayout",{Padding=UDim.new(0,2),FillDirection=Enum.FillDirection.Vertical},Entry)
+    new("TextLabel",{Size=UDim2.new(1,0,0,14),AutomaticSize=Enum.AutomaticSize.Y,
+        BackgroundTransparency=1,Text=nameText,Font=Enum.Font.GothamBold,TextSize=10,
+        TextColor3=nameColor,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=13},Entry)
+    new("TextLabel",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+        BackgroundTransparency=1,Text=message,Font=Enum.Font.Gotham,TextSize=12,
+        TextColor3=C.TEXT,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true,ZIndex=13},Entry)
+    tw(Entry,fast,{BackgroundTransparency=0})
+    task.defer(function()
+        if not isShutdown and LogScroll.Parent then LogScroll.CanvasPosition=Vector2.new(0,math.huge) end
+    end)
+end
+
+-- ── TRANSCRIPT LOGIC ──────────────────────────────────────
+local function populateViewPanel(snapshot)
+    for _,c in ipairs(ViewScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+    ViewTitleLbl.Text=snapshot.id.." — "..tostring(#snapshot.entries).." msgs"
+    local html=buildTranscriptHTML(snapshot); currentDataURI=buildDataURI(html)
+    CopyBtn.MouseButton1Click:Connect(function()
+        local ok=pcall(function()
+            if setclipboard then setclipboard(currentDataURI)
+            elseif Clipboard then Clipboard.set(currentDataURI) end
+        end)
+        if ok then CopyBtn.Text="✓ COPIED"; CopyBtn.TextColor3=C.GREEN
+            task.delay(2,function() if CopyBtn.Parent then CopyBtn.Text="📋 COPY"; CopyBtn.TextColor3=C.YELLOW end end)
+        else CopyBtn.Text="N/A" end
+    end)
+    if #snapshot.entries==0 then
+        new("TextLabel",{Size=UDim2.new(1,0,0,40),BackgroundTransparency=1,
+            Text="No messages in this transcript.",Font=Enum.Font.Gotham,TextSize=12,
+            TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Center,ZIndex=42},ViewScroll); return
+    end
+    for idx,e in ipairs(snapshot.entries) do
+        local bgColor=e.kind=="ai" and C.MSGBG_AI or e.kind=="sys" and C.MSGBG_SYS or C.MSGBG_USER
+        local nameColor=e.kind=="ai" and C.ACCENT2 or e.kind=="sys" and C.ORANGE or C.ACCENT
+        local nameText=e.kind=="ai" and "✦ GROQ" or e.kind=="sys" and "⚙ SYSTEM" or "👤 "..tostring(e.speaker)
+        local Entry=new("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+            BackgroundColor3=bgColor,LayoutOrder=idx,ZIndex=42},ViewScroll)
+        corner(Entry,6)
+        new("UIPadding",{PaddingLeft=UDim.new(0,7),PaddingRight=UDim.new(0,7),PaddingTop=UDim.new(0,5),PaddingBottom=UDim.new(0,5)},Entry)
+        new("UIListLayout",{Padding=UDim.new(0,2),FillDirection=Enum.FillDirection.Vertical},Entry)
+        local topRow=new("Frame",{Size=UDim2.new(1,0,0,14),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,ZIndex=43},Entry)
+        new("TextLabel",{Size=UDim2.new(1,-40,1,0),BackgroundTransparency=1,Text=nameText,
+            Font=Enum.Font.GothamBold,TextSize=10,TextColor3=nameColor,
+            TextXAlignment=Enum.TextXAlignment.Left,ZIndex=44},topRow)
+        new("TextLabel",{Size=UDim2.new(0,36,1,0),Position=UDim2.new(1,-38,0,0),BackgroundTransparency=1,
+            Text=e.time,Font=Enum.Font.Gotham,TextSize=9,TextColor3=C.DIMTEXT,
+            TextXAlignment=Enum.TextXAlignment.Right,ZIndex=44},topRow)
+        new("TextLabel",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,
+            Text=e.message,Font=Enum.Font.Gotham,TextSize=12,TextColor3=C.TEXT,
+            TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true,ZIndex=43},Entry)
+    end
+end
+
+local function openViewPanel(snapshot)
+    populateViewPanel(snapshot)
+    ViewPanel.Size=UDim2.new(0,370,0,0); ViewPanel.Visible=true
+    tw(ViewPanel,spring,{Size=UDim2.new(0,370,0,VIEW_PANEL_H)})
+end
+local function closeViewPanel()
+    tw(ViewPanel,med,{Size=UDim2.new(0,370,0,0)})
+    task.delay(0.36,function() if not isShutdown and ViewPanel.Parent then ViewPanel.Visible=false end end)
+end
+ViewBackBtn.MouseButton1Click:Connect(closeViewPanel)
+
+local function addTranscriptRow(snapshot)
+    local n=#transcripts
+    local Row=new("Frame",{Size=UDim2.new(1,0,0,56),BackgroundColor3=C.BG,LayoutOrder=n,ZIndex=32},TxListScroll)
+    corner(Row,8); stroke(Row,Color3.fromRGB(35,30,70),1)
+    new("TextLabel",{Size=UDim2.new(1,-90,0,18),Position=UDim2.new(0,8,0,6),BackgroundTransparency=1,
+        Text=snapshot.id,Font=Enum.Font.GothamBold,TextSize=11,
+        TextColor3=C.ACCENT2,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=33},Row)
+    new("TextLabel",{Size=UDim2.new(1,-16,0,16),Position=UDim2.new(0,8,0,24),BackgroundTransparency=1,
+        Text=snapshot.label,Font=Enum.Font.Gotham,TextSize=10,
+        TextColor3=C.DIMTEXT,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=33},Row)
+    local OpenBtn=new("TextButton",{
+        Size=UDim2.new(0,70,0,26),Position=UDim2.new(1,-78,0.5,-13),
+        BackgroundColor3=Color3.fromRGB(25,20,55),Text="VIEW →",
+        Font=Enum.Font.GothamBold,TextSize=10,TextColor3=C.ACCENT2,AutoButtonColor=false,ZIndex=33,
+    },Row)
+    corner(OpenBtn,6); stroke(OpenBtn,C.ACCENT2,1)
+    OpenBtn.MouseEnter:Connect(function() tw(OpenBtn,fast,{BackgroundColor3=Color3.fromRGB(40,30,80)}) end)
+    OpenBtn.MouseLeave:Connect(function() tw(OpenBtn,fast,{BackgroundColor3=Color3.fromRGB(25,20,55)}) end)
+    OpenBtn.MouseButton1Click:Connect(function() openViewPanel(snapshot) end)
+    TxStatusLbl.Text=tostring(#transcripts).." transcript"..(#transcripts==1 and "" or "s").." saved."
+end
+
+local function takeSnapshot()
+    if #liveLog==0 then TxStatusLbl.Text="Nothing logged yet!"; return end
+    local entries={}
+    for _,e in ipairs(liveLog) do table.insert(entries,{kind=e.kind,speaker=e.speaker,message=e.message,time=e.time}) end
+    local id=genId(); local label="Session @ "..nowLabel().." ("..tostring(#entries).." msgs)"
+    local snapshot={id=id,label=label,entries=entries}
+    table.insert(transcripts,snapshot); addTranscriptRow(snapshot)
+    tw(NewTxBtn,fast,{BackgroundColor3=Color3.fromRGB(20,70,30)})
+    NewTxBtn.Text="✓  Saved — "..id
+    task.delay(2,function()
+        if not isShutdown and NewTxBtn.Parent then
+            NewTxBtn.Text="＋  Snapshot Current Log as New Transcript"
+            tw(NewTxBtn,fast,{BackgroundColor3=Color3.fromRGB(20,40,90)})
+        end
+    end)
+end
+NewTxBtn.MouseButton1Click:Connect(takeSnapshot)
+
+local function openTxPanel()
+    txPanelOpen=true; TxPanel.Size=UDim2.new(0,370,0,0); TxPanel.Visible=true
+    tw(TxPanel,spring,{Size=UDim2.new(0,370,0,TX_PANEL_H)}); tw(TxBtn,fast,{BackgroundColor3=Color3.fromRGB(30,20,70)})
+end
+local function closeTxPanel()
+    txPanelOpen=false; tw(TxPanel,med,{Size=UDim2.new(0,370,0,0)})
+    task.delay(0.36,function() if not txPanelOpen and not isShutdown and TxPanel.Parent then TxPanel.Visible=false end end)
+    tw(TxBtn,fast,{BackgroundColor3=Color3.fromRGB(14,20,45)})
+end
+TxBtn.MouseButton1Click:Connect(function() if txPanelOpen then closeTxPanel() else openTxPanel() end end)
+TxCloseBtn.MouseButton1Click:Connect(closeTxPanel)
+
+-- ── DRAG ──────────────────────────────────────────────────
+local function makeDraggable(handle,target)
+    local dragging,dragStart,startPos
+    handle.InputBegan:Connect(function(inp)
+        -- Never allow dragging while the tutorial is active (would break spotlight alignment)
+        if tutorialActive then return end
+        if inp.UserInputType==Enum.UserInputType.MouseButton1 then
+            dragging=true; dragStart=inp.Position; startPos=target.Position
+        end
+    end)
+    local c1=UserInputService.InputChanged:Connect(function(inp)
+        if tutorialActive then dragging=false; return end
+        if dragging and inp.UserInputType==Enum.UserInputType.MouseMovement then
+            local d=inp.Position-dragStart
+            target.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
+        end
+    end)
+    local c2=UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end
+    end)
+    onCleanup(function() c1:Disconnect(); c2:Disconnect() end)
+end
+makeDraggable(Header,Panel)
+makeDraggable(TxHeader,TxPanel)
+makeDraggable(ViewHeader,ViewPanel)
+-- Tutorial card itself is NOT draggable — position is managed by positionCard()
+
+-- ── SEND TO ROBLOX CHAT ───────────────────────────────────
+local function sendRobloxChat(targetUsername,reply)
+    if isShutdown then return end
+    if not canSendRobloxChat() then
+        task.spawn(function()
+            while not canSendRobloxChat() and not isShutdown do task.wait(1) end
+            if not isShutdown then sendRobloxChat(targetUsername,reply) end
+        end); return
+    end
+    local r=reply; if #r>0 then r=r:sub(1,1):lower()..r:sub(2) end
+    local msg="[AI]: "..targetUsername..", "..r
+    if #msg>200 then msg=msg:sub(1,197).."..." end
+    pcall(function()
+        local tcs=game:GetService("TextChatService")
+        local ch=tcs.TextChannels:FindFirstChild("RBXGeneral")
+        if ch then ch:SendAsync(msg); recordRobloxSend() end
+    end)
+end
+
+-- ── THINKING ──────────────────────────────────────────────
+local dots=0
+local function startThinking()
+    if isShutdown then return end
+    tw(StatusDot,fast,{BackgroundColor3=C.YELLOW}); tw(StatusLbl,fast,{TextColor3=C.YELLOW})
+    StatusLbl.Text="THINKING"; dots=0
+    thinkConn=RunService.Heartbeat:Connect(function()
+        if isShutdown then return end
+        dots=(dots+1)%4
+        if FooterText.Parent then
+            local n=queueSize(); local sfx=n>1 and (" ("..n.." queued)") or ""
+            FooterText.Text="Groq is thinking"..string.rep(".",dots)..sfx
+        end
+    end)
+end
+local function stopThinking()
+    if thinkConn then thinkConn:Disconnect(); thinkConn=nil end
+    if isShutdown or groqPaused then return end
+    if autoRespond then
+        tw(StatusDot,fast,{BackgroundColor3=C.GREEN}); tw(StatusLbl,fast,{TextColor3=C.GREEN})
+        StatusLbl.Text="ACTIVE"
+    else
+        tw(StatusDot,fast,{BackgroundColor3=Color3.fromRGB(120,130,160)}); tw(StatusLbl,fast,{TextColor3=C.DIMTEXT})
+        StatusLbl.Text="OFF"
+    end
+    if FooterText.Parent then FooterText.Text="Waiting for messages." end
+end
+onCleanup(function() if thinkConn then thinkConn:Disconnect() end end)
+onCleanup(function() stopAlignLoop() end)
+
+ClearBtn.MouseButton1Click:Connect(function()
+    for _,c in ipairs(LogScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+    logCount=0; FooterText.Text="Log cleared."
+    task.delay(2,function() if not isShutdown and FooterText.Parent then FooterText.Text="Waiting for messages." end end)
+end)
+
+-- ── PROCESS QUEUE ─────────────────────────────────────────
+local playerLastSent={}
+local function processQueue()
+    if queueRunning then return end; queueRunning=true
+    task.spawn(function()
+        while #messageQueue>0 and not isShutdown and Gui.Parent do
+            while groqPaused and not isShutdown and Gui.Parent do task.wait(1) end
+            if isShutdown or not Gui.Parent then break end
+            local item=table.remove(messageQueue,1)
+            local player=item.player; local message=item.message
+            local apiKey=item.apiKey; local sysPrompt=item.sysPrompt; local userId=item.userId
+            local uid=player.UserId
+            if playerLastSent[uid] then
+                local w=COOLDOWN-(tick()-playerLastSent[uid]); if w>0 then task.wait(w) end
+            end
+            if isShutdown then break end
+            updateQueueBadge(); addLog(player.Name,message,"user")
+            if FooterText.Parent then FooterText.Text=player.Name..": "..message:sub(1,40) end
+            startThinking()
+            -- ★ sysPrompt is captured at queue time from SysBox.Text, so it's always live
+            local reply,err=callGroq(apiKey,sysPrompt,userId,player.Name,message)
+            stopThinking(); playerLastSent[uid]=tick()
+            if isShutdown then break end
+            if reply then
+                addLog("Groq",reply,"ai")
+                if FooterText.Parent then FooterText.Text="Replied to "..player.Name.."." end
+                if sendToChat then sendRobloxChat(player.Name,reply) end
+            elseif err=="RATE_LIMITED" then
+                addLog("","Groq rate limited. Pausing 60s.","sys")
+                setGroqRateLimited(60); table.insert(messageQueue,1,item)
+            elseif err=="BAD_KEY" then
+                addLog("","Invalid API key. Check console.groq.com.","sys")
+                if FooterText.Parent then FooterText.Text="Bad API key." end; break
+            else
+                addLog("","Error: "..tostring(err),"sys")
+                if FooterText.Parent then FooterText.Text="Error. Check key or quota." end
+            end
+            task.wait(0.5)
+        end
+        queueRunning=false
+        if not isShutdown and FooterText.Parent and #messageQueue==0 then
+            FooterText.Text="Waiting for messages."
+        end
+    end)
+end
+
+-- ── CHAT HANDLER ──────────────────────────────────────────
+local function handleChat(player,message)
+    if isShutdown or not autoRespond then return end
+    local isSelf=(player==LocalPlayer)
+    if isSelf and not respondSelf then return end
+    local apiKey=KeyBox.Text
+    if apiKey=="" then addLog("","No API key set.","sys"); return end
+    if not respondAll then
+        local trigger=TriggerBox.Text:lower():gsub("%s+","")
+        if trigger~="" and not message:lower():find(trigger,1,true) then return end
+    end
+    if shouldBlock(message) then
+        addLog(player.Name,message,"user"); addLog("Groq",BLOCKED_RESPONSE,"ai")
+        if sendToChat then sendRobloxChat(player.Name,BLOCKED_RESPONSE) end; return
+    end
+    -- ★ Capture SysBox.Text RIGHT NOW so each message uses the current prompt
+    table.insert(messageQueue,{
+        player=player, message=message,
+        apiKey=apiKey,
+        sysPrompt=SysBox.Text,   -- ← live capture
+        userId=player.UserId,
+    })
+    updateQueueBadge(); processQueue()
+end
+
+-- ── LISTEN TO PLAYERS ─────────────────────────────────────
+local function hookPlayer(p)
+    local conn=p.Chatted:Connect(function(msg) if not isShutdown then handleChat(p,msg) end end)
+    onCleanup(function() conn:Disconnect() end)
+end
+for _,p in ipairs(Players:GetPlayers()) do hookPlayer(p) end
+local addedConn=Players.PlayerAdded:Connect(function(p) if not isShutdown then hookPlayer(p) end end)
+onCleanup(function() addedConn:Disconnect() end)
+
+-- ── POPULATE TUTORIAL HIGHLIGHTS (after UI is built) ──────
+-- To adjust where the spotlight/card appears for each tutorial step,
+-- change the panelY value — it is the pixel offset from the TOP of the panel.
+-- Panel starts at Y=80 on screen by default. Card appears to the LEFT of the panel.
+TUT_HIGHLIGHTS = {
+    KeyRow    = { obj=KeyRow,    panelY=130  },  -- GROQ API KEY input box
+    ModelBtn  = { obj=ModelBtn,  panelY=200 },  -- AI MODEL dropdown
+    AutoRow   = { obj=AutoRow,   panelY=270 },  -- AUTO-RESPOND row
+    LogScroll = { obj=LogScroll, panelY=600 },  -- CONVERSATION LOG scroll
+}
+
+print("[GroqChatResponder] Loaded! Click 🤖 to open. Click '? HOW TO SETUP' for the tutorial.")
