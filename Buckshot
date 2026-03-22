@@ -82,7 +82,7 @@ Instance.new("UICorner", obj).CornerRadius = UDim.new(0, 6)
 Instance.new("UIStroke", obj).Color = Color3.fromRGB(255, 200, 60)
 obj.MouseButton1Click:Connect(function()
 	pcall(function()
-		setclipboard("https://raw.githubusercontent.com/Catchallcat5382/Cats-Scripts/refs/heads/main/Buckshot")
+		setclipboard("https://scriptblox.com/script/BUCKSHOT-Shell-Predictor-138708")
 	end)
 	obj.Text = "Link Copied!"
 	task.delay(2, function() obj.Text = "©️ Cat's Script" end)
