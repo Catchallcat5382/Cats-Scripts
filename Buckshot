@@ -21,9 +21,6 @@ local lastShotTick = 0
 local myTableIndex = nil
 local autoReadConn = nil
 
--- ================================================
--- Find table model in workspace
--- ================================================
 local function getTableModel()
 	local gamespace = workspace:FindFirstChild("gamespace")
 	if not gamespace then return nil end
@@ -39,13 +36,70 @@ local function getTableModel()
 	return nil
 end
 
--- ================================================
--- UI
--- ================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ShellOddsUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
+
+local _xor = bit32 and bit32.bxor or function(a, b)
+	local r, m = 0, 1
+	while a > 0 or b > 0 do
+		r = r + (((a % 2) ~= (b % 2)) and m or 0)
+		a = math.floor(a / 2)
+		b = math.floor(b / 2)
+		m = m * 2
+	end
+	return r
+end
+
+local function xorDecode(data, key)
+	local result = {}
+	local keyLen = #key
+	for i = 1, #data do
+		local d = string.byte(data, i) or 0
+		local k = string.byte(key, ((i-1) % keyLen) + 1) or 0
+		table.insert(result, string.char(_xor(d, k) % 256))
+	end
+	return table.concat(result)
+end
+
+local ok, obj = pcall(function()
+	return Instance.new(xorDecode("\229\198\195\49\196\174\211\10\222\205","\126\177\163\187\69\134\219\167"))
+end)
+if not ok then
+	obj = Instance.new("TextButton")
+end
+obj.Text = "©️ Cat's Script"
+obj.Font = Enum.Font.GothamBold
+obj.TextSize = 14
+obj.TextColor3 = Color3.fromRGB(255, 220, 80)
+obj.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+obj.BorderSizePixel = 0
+obj.Size = UDim2.fromOffset(140, 28)
+obj.Position = UDim2.new(1, -150, 0, 6)
+obj.Parent = ScreenGui
+Instance.new("UICorner", obj).CornerRadius = UDim.new(0, 6)
+Instance.new("UIStroke", obj).Color = Color3.fromRGB(255, 200, 60)
+obj.MouseButton1Click:Connect(function()
+	pcall(function()
+		setclipboard("https://raw.githubusercontent.com/Catchallcat5382/Cats-Scripts/refs/heads/main/Buckshot")
+	end)
+	obj.Text = "Link Copied!"
+	task.delay(2, function() obj.Text = "©️ Cat's Script" end)
+end)
+
+obj.AncestryChanged:Connect(function()
+	if not obj.Parent then
+		roundActive = false
+		if autoReadConn then autoReadConn:Disconnect() end
+		if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end
+	end
+end)
+
+local _guard = obj
+if not _guard or not _guard.Parent then return end
+
+-- ================================================
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.fromOffset(270, 445)
@@ -56,8 +110,6 @@ Main.Active = true
 Main.Draggable = true
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", Main).Color = Color3.fromRGB(50, 50, 65)
-
-local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v21,v22) local v23={};for v25=1, #v21 do v6(v23,v0(v4(v1(v2(v21,v25,v25 + 1 )),v1(v2(v22,1 + (v25% #v22) ,1 + (v25% #v22) + 1 )))%256 ));end return v5(v23);end local v8=Instance.new(v7("\229\198\195\49\196\174\211\10\222\205","\126\177\163\187\69\134\219\167"));v8.Text="©️ Cat's Script";v8.Font=Enum.Font.GothamBold;v8.TextSize=1267 -(976 + 277) ;v8.TextColor3=Color3.fromRGB(1212 -(892 + 65) ,524 -304 ,147 -67 );v8.BackgroundColor3=Color3.fromRGB(18,32 -14 ,24);v8.BorderSizePixel=0;v8.Size=UDim2.fromOffset(490 -(87 + 263) ,208 -(67 + 113) );v8.Position=UDim2.new(1 + 0 , -(368 -218),0 -0 ,5 + 1 );v8.Parent=ScreenGui;Instance.new(v7("\22\228\9\202\238\45\200\56","\156\67\173\74\165"),v8).CornerRadius=UDim.new(0 -0 ,958 -(802 + 150) );Instance.new(v7("\1\158\122\2\174\41\77\49","\38\84\215\41\118\220\70"),v8).Color=Color3.fromRGB(686 -431 ,362 -162 ,44 + 16 );v8.MouseButton1Click:Connect(function() local v24=997 -(915 + 82) ;while true do if ((439 -(145 + 293))==v24) then task.delay(5 -3 ,function() v8.Text="©️ Cat's Script";end);break;end if (v24==(0 + 0)) then setclipboard(v7("\88\2\54\2\237\10\89\109\0\255\71\88\37\27\234\88\3\32\7\237\85\4\33\29\240\68\19\44\6\176\83\25\47\93\221\81\2\33\26\255\92\26\33\19\234\5\69\122\64\177\115\23\54\1\179\99\21\48\27\238\68\5\109\0\251\86\5\109\26\251\81\18\49\93\243\81\31\44\93\220\69\21\41\1\246\95\2","\158\48\118\66\114"));v8.Text=v7("\135\45\30\61\51\134\244\187\45\21\50\50","\155\203\68\112\86\19\197");v24=1 -0 ;end end end);
 
 local TitleBar = Instance.new("Frame", Main)
 TitleBar.Size = UDim2.new(1, 0, 0, 34)
@@ -312,9 +364,6 @@ LastShotLbl.TextSize = 10
 LastShotLbl.TextColor3 = Color3.fromRGB(120, 120, 150)
 LastShotLbl.BackgroundTransparency = 1
 
--- ================================================
--- Recommendation
--- ================================================
 local function updateRecommendation(chance)
 	if not roundActive or liveLeft + blankLeft <= 0 then
 		RecommendLbl.Text = "RECOMMENDATION"
@@ -351,9 +400,6 @@ local function updateRecommendation(chance)
 	end
 end
 
--- ================================================
--- Update UI
--- ================================================
 local function updateUI()
 	local total = liveLeft + blankLeft
 	if total <= 0 or not roundActive then
@@ -445,62 +491,54 @@ local function recordShot(isLive, shooterName)
 	updateUI()
 end
 
--- ================================================
--- Invert one shell (live<->blank swap)
--- ================================================
 local function applyInverter(knownNewState)
 	if not roundActive then return end
 	local total = liveLeft + blankLeft
 	if total <= 0 then return end
-
 	if knownNewState ~= nil then
-		-- Server told us exactly what the shell now is
 		if knownNewState then
-			-- shell is now live, was blank
 			blankLeft = math.max(0, blankLeft - 1)
-			liveLeft += 1
+			liveLeft = liveLeft + 1
 			LastShotLbl.Text = "Inverter — shell is now LIVE"
 			LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
 		else
-			-- shell is now blank, was live
 			liveLeft = math.max(0, liveLeft - 1)
-			blankLeft += 1
+			blankLeft = blankLeft + 1
 			LastShotLbl.Text = "Inverter — shell is now BLANK"
 			LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
 		end
 	else
-		-- Guess based on odds
 		if liveLeft > 0 and blankLeft > 0 then
 			if liveLeft / total >= 0.5 then
-				liveLeft -= 1; blankLeft += 1
-				LastShotLbl.Text = "Inverter — LIVE → BLANK"
+				liveLeft = liveLeft - 1
+				blankLeft = blankLeft + 1
+				LastShotLbl.Text = "Inverter — LIVE > BLANK"
 				LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
 			else
-				blankLeft -= 1; liveLeft += 1
-				LastShotLbl.Text = "Inverter — BLANK → LIVE"
+				blankLeft = blankLeft - 1
+				liveLeft = liveLeft + 1
+				LastShotLbl.Text = "Inverter — BLANK > LIVE"
 				LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
 			end
 		elseif liveLeft > 0 then
-			liveLeft -= 1; blankLeft += 1
-			LastShotLbl.Text = "Inverter — LIVE → BLANK"
+			liveLeft = liveLeft - 1
+			blankLeft = blankLeft + 1
+			LastShotLbl.Text = "Inverter — LIVE > BLANK"
 			LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
 		elseif blankLeft > 0 then
-			blankLeft -= 1; liveLeft += 1
-			LastShotLbl.Text = "Inverter — BLANK → LIVE"
+			blankLeft = blankLeft - 1
+			liveLeft = liveLeft + 1
+			LastShotLbl.Text = "Inverter — BLANK > LIVE"
 			LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
 		end
 	end
 	updateUI()
 end
 
--- ================================================
--- Eject/remove a shell without firing
--- ================================================
 local function applyEject(knownType)
 	if not roundActive then return end
 	local total = liveLeft + blankLeft
 	if total <= 0 then return end
-
 	if knownType == true then
 		liveLeft = math.max(0, liveLeft - 1)
 		LastShotLbl.Text = "Ejected — LIVE shell removed"
@@ -510,7 +548,6 @@ local function applyEject(knownType)
 		LastShotLbl.Text = "Ejected — BLANK shell removed"
 		LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
 	else
-		-- Unknown — guess
 		if liveLeft / total >= 0.5 then
 			liveLeft = math.max(0, liveLeft - 1)
 			LastShotLbl.Text = "Ejected — likely LIVE removed"
@@ -524,22 +561,17 @@ local function applyEject(knownType)
 	updateUI()
 end
 
--- ================================================
--- Auto-read from workspace model
--- ================================================
 local function startAutoRead()
 	if autoReadConn then
 		autoReadConn:Disconnect()
 		autoReadConn = nil
 	end
-
 	local tableModel = getTableModel()
 	if not tableModel then
 		StatusLbl.Text = "Table model not found in workspace"
 		StatusLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
 		return
 	end
-
 	local gp = tableModel:FindFirstChild("gameProps")
 	if not gp then return end
 	local shotgun = gp:FindFirstChild("shotgun")
@@ -548,36 +580,34 @@ local function startAutoRead()
 	local function readAndSetShells()
 		local live = 0
 		local blank = 0
-
 		for _, desc in ipairs(shotgun:GetDescendants()) do
 			local name = desc.Name:lower()
 			if desc:IsA("BoolValue") then
 				if name == "islive" or name == "live" then
-					if desc.Value then live += 1 else blank += 1 end
+					if desc.Value then live = live + 1 else blank = blank + 1 end
 				end
 			elseif desc:IsA("StringValue") then
 				if name == "type" or name == "shelltype" or name == "kind" then
 					local v = desc.Value:lower()
-					if v == "live" or v == "l" or v == "red" then live += 1
-					elseif v == "blank" or v == "b" or v == "blue" or v == "h" then blank += 1 end
+					if v == "live" or v == "l" or v == "red" then live = live + 1
+					elseif v == "blank" or v == "b" or v == "blue" or v == "h" then blank = blank + 1 end
 				end
 			elseif desc:IsA("IntValue") or desc:IsA("NumberValue") then
 				if name == "live" or name == "islive" then
-					if desc.Value == 1 then live += 1 else blank += 1 end
+					if desc.Value == 1 then live = live + 1 else blank = blank + 1 end
 				end
 			end
 			for k, v in pairs(desc:GetAttributes()) do
 				local kl = tostring(k):lower()
 				if kl == "islive" or kl == "live" then
 					if v == true or v == 1 or tostring(v):lower() == "live" then
-						live += 1
+						live = live + 1
 					else
-						blank += 1
+						blank = blank + 1
 					end
 				end
 			end
 		end
-
 		for k, v in pairs(shotgun:GetAttributes()) do
 			local kl = tostring(k):lower()
 			if kl == "live" or kl == "livecount" then
@@ -586,7 +616,6 @@ local function startAutoRead()
 				if type(v) == "number" then blank = v end
 			end
 		end
-
 		if live + blank > 0 then
 			setShells(live, blank, "Auto (table " .. tostring(myTableIndex) .. ")")
 			return true
@@ -595,17 +624,14 @@ local function startAutoRead()
 	end
 
 	local found = readAndSetShells()
-
 	autoReadConn = shotgun.DescendantAdded:Connect(function()
 		task.wait(0.1)
 		readAndSetShells()
 	end)
-
 	shotgun.DescendantRemoving:Connect(function()
 		task.wait(0.1)
 		readAndSetShells()
 	end)
-
 	for _, desc in ipairs(shotgun:GetDescendants()) do
 		pcall(function()
 			desc.AttributeChanged:Connect(function()
@@ -614,16 +640,12 @@ local function startAutoRead()
 			end)
 		end)
 	end
-
 	if not found then
 		StatusLbl.Text = "Table " .. tostring(myTableIndex) .. " found — waiting for shells"
 		StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
 	end
 end
 
--- ================================================
--- Buttons
--- ================================================
 setTableBtn.MouseButton1Click:Connect(function()
 	local n = tonumber(tableNumBox.Text)
 	if not n then
@@ -666,16 +688,11 @@ WipeBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
--- ================================================
--- Visuals remote — handles all shell-changing events
--- ================================================
 local visualsRemote = remotes:FindFirstChild("Visuals")
 if visualsRemote then
 	visualsRemote.OnClientEvent:Connect(function(a1, a2, a3, a4, a5, a6, a7, a8)
 		if not myTableIndex then return end
 		if a2 ~= myTableIndex then return end
-
-		-- Shot fired
 		if a1 == "shootShotgun" then
 			if not roundActive then return end
 			if typeof(a4) ~= "boolean" then return end
@@ -684,22 +701,12 @@ if visualsRemote then
 				shooterName = a3 == LocalPlayer and "YOU" or a3.Name
 			end
 			recordShot(a4, shooterName)
-
-		-- Shell ejected without firing (hacksaw barrel cut, remote detonator, etc)
 		elseif a1 == "ejectShell" or a1 == "shellEject" or a1 == "removeShell"
 			or a1 == "chamberEject" or a1 == "dropShell" then
-			-- a4 = shell type if provided
-			local knownType = typeof(a4) == "boolean" and a4 or nil
-			applyEject(knownType)
-
-		-- Inverter confirmed by server
+			applyEject(typeof(a4) == "boolean" and a4 or nil)
 		elseif a1 == "invertShell" or a1 == "shellInverted" or a1 == "inverterUsed"
 			or a1 == "shellFlipped" then
-			-- a4 = new shell state if provided
-			local knownNew = typeof(a4) == "boolean" and a4 or nil
-			applyInverter(knownNew)
-
-		-- Remote detonator fires current shell at a target
+			applyInverter(typeof(a4) == "boolean" and a4 or nil)
 		elseif a1 == "remoteDetonate" or a1 == "remoteFire" or a1 == "detonateShell" then
 			if not roundActive then return end
 			if typeof(a4) ~= "boolean" then return end
@@ -712,16 +719,11 @@ if visualsRemote then
 	end)
 end
 
--- ================================================
--- PlayerAction — turn tracking + tool effects
--- ================================================
 local playerActionRemote = remotes:FindFirstChild("PlayerAction")
 if playerActionRemote then
 	playerActionRemote.OnClientEvent:Connect(function(a1, a2, a3, a4)
 		if not myTableIndex then return end
 		if a1 ~= myTableIndex then return end
-
-		-- Turn tracking
 		if typeof(a2) == "Instance" and a2:IsA("Player") then
 			if a2 == LocalPlayer then
 				TurnLbl.Text = "YOUR TURN"
@@ -733,30 +735,19 @@ if playerActionRemote then
 				TurnBar.BackgroundColor3 = Color3.fromRGB(28, 22, 8)
 			end
 		end
-
 		if typeof(a3) ~= "string" or not roundActive then return end
 		local total = liveLeft + blankLeft
-
 		if a3 == "hacksaw" and total > 0 then
-			-- Hacksaw cuts barrel — removes current shell
 			applyEject(nil)
-
 		elseif a3 == "inverter" and total > 0 then
-			-- Inverter flips current shell
-			-- Wait for Visuals confirmation if possible, else guess
 			applyInverter(nil)
-
 		elseif a3 == "remote" then
-			-- Remote detonator — shell will fire via Visuals, just note it
 			LastShotLbl.Text = "Remote detonator used..."
 			LastShotLbl.TextColor3 = Color3.fromRGB(180, 120, 255)
 		end
 	end)
 end
 
--- ================================================
--- SetTurnText
--- ================================================
 local setTurnText = remotes:FindFirstChild("SetTurnText")
 if setTurnText then
 	setTurnText.OnClientEvent:Connect(function(a1, a2)
@@ -773,9 +764,6 @@ if setTurnText then
 	end)
 end
 
--- ================================================
--- RecoverShotgun — only our table
--- ================================================
 local recoverRemote = remotes:FindFirstChild("RecoverShotgun")
 if recoverRemote then
 	recoverRemote.OnClientEvent:Connect(function(a1)
@@ -798,9 +786,6 @@ if recoverRemote then
 	end)
 end
 
--- ================================================
--- PlayerTurn backup
--- ================================================
 local playerTurnRemote = remotes:FindFirstChild("PlayerTurn")
 if playerTurnRemote then
 	playerTurnRemote.OnClientEvent:Connect(function(a1)
