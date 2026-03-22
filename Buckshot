@@ -1,116 +1,822 @@
-                                                                                 task.spawn(function() 
-                                                                         local ReplicatedStorage=game:GetService(       
-                                                                    "ReplicatedStorage");local CoreGui=game:GetService("CoreGui") 
-                                                                ;local Players=game:GetService("Players");local LocalPlayer=Players.    
-                                                            LocalPlayer;if CoreGui:FindFirstChild("ShellOddsUI") then CoreGui.ShellOddsUI 
-                                                          :Destroy();end local remotes=ReplicatedStorage:FindFirstChild("Remotes");if  not  
-                                                        remotes then warn("No Remotes");return;end local liveLeft=0;local blankLeft=0;local   
-                                                      roundActive=false;local shotHistory={};local lastShotTick=0;local myTableIndex=nil;local  
-                                                    autoReadConn=nil;local function getTableModel() local gamespace=workspace:FindFirstChild(     
-                                                  "gamespace");if  not gamespace then return nil;end local tables=gamespace:FindFirstChild("tables" 
-                                                  );if  not tables then return nil;end for _,t in ipairs(tables:GetChildren()) do if ((tonumber(t.    
-                                                Name)==myTableIndex) or (t.Name==tostring(myTableIndex))) then return t;end end local children=tables:  
-                                                GetChildren();if children[myTableIndex] then return children[myTableIndex];end return nil;end local       
-                                              ScreenGui=Instance.new("ScreenGui");ScreenGui.Name="ShellOddsUI";ScreenGui.ResetOnSpawn=false;ScreenGui.      
-                                              Parent=CoreGui;local Main=Instance.new("Frame",ScreenGui);Main.Size=UDim2.fromOffset(270,445);Main.Position=  
-                                            UDim2.fromOffset(20,20);Main.BackgroundColor3=Color3.fromRGB(14,14,18);Main.BorderSizePixel=0;Main.Active=true;   
-                                            Main.Draggable=true;Instance.new("UICorner",Main).CornerRadius=UDim.new(0,8);Instance.new("UIStroke",Main).Color=   
-                                          Color3.fromRGB(50,50,65);local TitleBar=Instance.new("Frame",Main);TitleBar.Size=UDim2.new(1,0,0,34);TitleBar.          
-                                          BackgroundColor3=Color3.fromRGB(18,18,24);TitleBar.BorderSizePixel=0;Instance.new("UICorner",TitleBar).CornerRadius=UDim. 
-                                          new(0,8);local TFix=Instance.new("Frame",TitleBar);TFix.Size=UDim2.new(1,0,0.5,0);TFix.Position=UDim2.fromScale(0,0.5);TFix 
-                                          .BackgroundColor3=Color3.fromRGB(18,18,24);TFix.BorderSizePixel=0;local TitleLbl=Instance.new("TextLabel",TitleBar);        
-                                        TitleLbl.Position=UDim2.fromOffset(10,0);TitleLbl.Size=UDim2.new(1, -44,1,0);TitleLbl.Text="Shell Odds";TitleLbl.Font=Enum.Font 
-                                        .GothamBold;TitleLbl.TextSize=13;TitleLbl.TextColor3=Color3.fromRGB(  --[[==============================]]220,220,235);TitleLbl.  
-                                        TextXAlignment=Enum.TextXAlignment.Left;TitleLbl.           --[[============================================]]                    
-                                        BackgroundTransparency=1;local CloseBtn=Instance.new(   --[[======================================================]]"TextButton",   
-                                      TitleBar);CloseBtn.Size=UDim2.fromOffset(26,22);      --[[==========================================================]]CloseBtn.Position 
-                                      =UDim2.new(1, -30,0.5, -11);CloseBtn.Text="X";      --[[==============================================================]]CloseBtn.Font=  
-                                      Enum.Font.GothamBold;CloseBtn.TextSize=12;CloseBtn. --[[================================================================]]                
-                                      BackgroundColor3=Color3.fromRGB(180,45,45);CloseBtn --[[==================================================================]].TextColor3=  
-                                      Color3.new(1,1,1);CloseBtn.BorderSizePixel=0;       --[[==================================================================]]Instance.new(     
-                                    "UICorner",CloseBtn).CornerRadius=UDim.new(0,5);local --[[====================================================================]] TableLbl=    
-                    Instance.new("TextLabel",Main);TableLbl.Position=UDim2.fromOffset(10, --[[====================================================================]]42);TableLbl.   
-              Size=UDim2.new(1, -20,0,13);TableLbl.Text=                                  --[[======================================================================]]              
-            "YOUR TABLE NUMBER  (Visuals shootShotgun arg2 from spy)";TableLbl.Font=Enum. --[[======================================================================]]Font.         
-          GothamBold;TableLbl.TextSize=9;TableLbl.TextColor3=Color3.fromRGB(255,200,60);  --[[======================================================================]]TableLbl.     
-        BackgroundTransparency=1;TableLbl.TextXAlignment=Enum.TextXAlignment.Left;        --[[======================================================================]]TableLbl.     
-        TextTruncate=Enum.TextTruncate.AtEnd;local TableFrame=Instance.new("Frame",Main); --[[======================================================================]]TableFrame.   
-      Position=UDim2.fromOffset(10,58);TableFrame.Size=UDim2.new(1, -20,0,28);TableFrame. --[[======================================================================]]              
-      BackgroundColor3=Color3.fromRGB(20,20,30);TableFrame.BorderSizePixel=0;Instance.new(  --[[==================================================================]]"UICorner",     
-      TableFrame).CornerRadius=UDim.new(0,5);local tableStroke=Instance.new("UIStroke",     --[[================================================================]]TableFrame);      
-    tableStroke.Color=Color3.fromRGB(255,200,60);tableStroke.Thickness=1.5;tableStroke.     --[[==============================================================]]Transparency=0.3; 
-    local tableNumBox=Instance.new("TextBox",TableFrame);tableNumBox.Size=UDim2.new(0.6, -8,1 --[[==========================================================]],0);tableNumBox.    
-    Position=UDim2.fromOffset(6,0);tableNumBox.PlaceholderText="e.g. 7";tableNumBox.            --[[====================================================]]PlaceholderColor3=      
-    Color3.fromRGB(100,100,80);tableNumBox.Text="";tableNumBox.Font=Enum.Font.GothamBold;         --[[==============================================]]tableNumBox.TextSize=14;  
-    tableNumBox.BackgroundTransparency=1;tableNumBox.TextColor3=Color3.fromRGB(255,220,80);           --[[====================================]]tableNumBox.ClearTextOnFocus= 
-    false;local setTableBtn=Instance.new("TextButton",TableFrame);setTableBtn.Size=UDim2.new(0.4, -6,1, - --[[========================]]4);setTableBtn.Position=UDim2.new(0.6 
-    ,2,0,2);setTableBtn.Text="Set Table";setTableBtn.Font=Enum.Font.GothamBold;setTableBtn.TextSize=11;setTableBtn.BackgroundColor3=Color3.fromRGB(180,140,30);setTableBtn. 
-  TextColor3=Color3.new(0,0,0);setTableBtn.BorderSizePixel=0;Instance.new("UICorner",setTableBtn).CornerRadius=UDim.new(0,4);local StatusBar=Instance.new("Frame",Main);  
-  StatusBar.Position=UDim2.fromOffset(10,92);StatusBar.Size=UDim2.new(1, -20,0,20);StatusBar.BackgroundColor3=Color3.fromRGB(20,20,30);StatusBar.BorderSizePixel=0;     
-  Instance.new("UICorner",StatusBar).CornerRadius=UDim.new(0,5);local StatusLbl=Instance.new("TextLabel",StatusBar);StatusLbl.Size=UDim2.fromScale(1,1);StatusLbl.Text=   
-  "Set your table number first";StatusLbl.Font=Enum.Font.Code;StatusLbl.TextSize=10;StatusLbl.TextColor3=Color3.fromRGB(255,200,60);StatusLbl.BackgroundTransparency=1;   
-  local TurnBar=Instance.new("Frame",Main);TurnBar.Position=UDim2.fromOffset(10,118);TurnBar.Size=UDim2.new(1, -20,0,22);TurnBar.BackgroundColor3=Color3.fromRGB(20,20,30 
-  );TurnBar.BorderSizePixel=0;Instance.new("UICorner",TurnBar).CornerRadius=UDim.new(0,5);local TurnLbl=Instance.new("TextLabel",TurnBar);TurnLbl.Size=UDim2.fromScale(1, 
-  1);TurnLbl.Text="Waiting...";TurnLbl.Font=Enum.Font.GothamBold;TurnLbl.TextSize=11;TurnLbl.TextColor3=Color3.fromRGB(120,120,150);TurnLbl.BackgroundTransparency=1;     
-  local InputLbl=Instance.new("TextLabel",Main);InputLbl.Position=UDim2.fromOffset(10,148);InputLbl.Size=UDim2.new(1, -20,0,13);InputLbl.Text=                            
-  "MANUAL OVERRIDE  (auto-reads from model)";InputLbl.Font=Enum.Font.GothamBold;InputLbl.TextSize=10;InputLbl.TextColor3=Color3.fromRGB(70,70,100);InputLbl.              
-  BackgroundTransparency=1;InputLbl.TextXAlignment=Enum.TextXAlignment.Left;local function makeBox(posY,placeholder,color) local frame=Instance.new("Frame",Main);frame.  
-  Position=UDim2.fromOffset(10,posY);frame.Size=UDim2.new(1, -20,0,26);frame.BackgroundColor3=Color3.fromRGB(20,20,30);frame.BorderSizePixel=0;Instance.new("UICorner",   
-  frame).CornerRadius=UDim.new(0,5);local stroke=Instance.new("UIStroke",frame);stroke.Color=color;stroke.Thickness=1.2;stroke.Transparency=0.5;local box=Instance.new(     
-  "TextBox",frame);box.Size=UDim2.new(1, -10,1,0);box.Position=UDim2.fromOffset(6,0);box.PlaceholderText=placeholder;box.PlaceholderColor3=Color3.fromRGB(60,60,80);box.    
-  Text="";box.Font=Enum.Font.GothamBold;box.TextSize=13;box.BackgroundTransparency=1;box.TextColor3=color;box.ClearTextOnFocus=false;return box;end local liveBox=makeBox(  
-  165,"Live shells",Color3.fromRGB(255,80,80));local blankBox=makeBox(197,"Blank shells",Color3.fromRGB(80,160,255));local SetBtn=Instance.new("TextButton",Main);SetBtn.   
-  Size=UDim2.new(0.67, -13,0,24);SetBtn.Position=UDim2.fromOffset(10,229);SetBtn.Text="Set Manually";SetBtn.Font=Enum.Font.GothamBold;SetBtn.TextSize=12;SetBtn.            
-  BackgroundColor3=Color3.fromRGB(45,45,75);SetBtn.TextColor3=Color3.new(1,1,1);SetBtn.BorderSizePixel=0;Instance.new("UICorner",SetBtn).CornerRadius=UDim.new(0,5);local   
-  WipeBtn=Instance.new("TextButton",Main);WipeBtn.Size=UDim2.new(0.33, -7,0,24);WipeBtn.Position=UDim2.new(0.67,0,0,229);WipeBtn.Text="Wipe";WipeBtn.Font=Enum.Font.        
-  GothamBold;WipeBtn.TextSize=12;WipeBtn.BackgroundColor3=Color3.fromRGB(120,30,30);WipeBtn.TextColor3=Color3.new(1,1,1);WipeBtn.BorderSizePixel=0;Instance.new("UICorner", 
-  WipeBtn).CornerRadius=UDim.new(0,5);local OddsFrame=Instance.new("Frame",Main);OddsFrame.Position=UDim2.fromOffset(10,261);OddsFrame.Size=UDim2.new(1, -20,0,76);         
-  OddsFrame.BackgroundColor3=Color3.fromRGB(20,20,26);OddsFrame.BorderSizePixel=0;Instance.new("UICorner",OddsFrame).CornerRadius=UDim.new(0,6);local OddsPercent=Instance. 
-  new("TextLabel",OddsFrame);OddsPercent.Position=UDim2.fromOffset(0,4);OddsPercent.Size=UDim2.new(1,0,0,36);OddsPercent.Text="--";OddsPercent.Font=Enum.Font.GothamBold;   
-  OddsPercent.TextSize=34;OddsPercent.TextColor3=Color3.fromRGB(100,100,130);OddsPercent.BackgroundTransparency=1;local OddsLabel=Instance.new("TextLabel",OddsFrame);      
-  OddsLabel.Position=UDim2.fromOffset(0,40);OddsLabel.Size=UDim2.new(1,0,0,16);OddsLabel.Text="set table to begin";OddsLabel.Font=Enum.Font.Gotham;OddsLabel.TextSize=11;   
-  OddsLabel.TextColor3=Color3.fromRGB(100,100,130);OddsLabel.BackgroundTransparency=1;local CountsLabel=Instance.new("TextLabel",OddsFrame);CountsLabel.Position=UDim2.   
-  fromOffset(0,57);CountsLabel.Size=UDim2.new(1,0,0,14);CountsLabel.Text="";CountsLabel.Font=Enum.Font.Code;CountsLabel.TextSize=10;CountsLabel.TextColor3=Color3.fromRGB 
-  (80,80,110);CountsLabel.BackgroundTransparency=1;local RecommendFrame=Instance.new("Frame",Main);RecommendFrame.Position=UDim2.fromOffset(10,344);RecommendFrame.Size=  
-    UDim2.new(1, -20,0,42);RecommendFrame.BackgroundColor3=Color3.fromRGB(18,18,26);RecommendFrame.BorderSizePixel=0;Instance.new("UICorner",RecommendFrame).CornerRadius 
-    =UDim.new(0,6);local RecommendLbl=Instance.new("TextLabel",RecommendFrame);RecommendLbl.Size=UDim2.new(1,0,0.5,0);RecommendLbl.Position=UDim2.fromOffset(0,2);        
-    RecommendLbl.Text="RECOMMENDATION";RecommendLbl.Font=Enum.Font.GothamBold;RecommendLbl.TextSize=15;RecommendLbl.TextColor3=Color3.fromRGB(180,180,200);RecommendLbl.  
-    BackgroundTransparency=1;local RecommendSub=Instance.new("TextLabel",RecommendFrame);RecommendSub.Size=UDim2.new(1,0,0.5,0);RecommendSub.Position=UDim2.new(0,0,0.5,0 
-      );RecommendSub.Text="";RecommendSub.Font=Enum.Font.Gotham;RecommendSub.TextSize=11;RecommendSub.TextColor3=Color3.fromRGB(120,120,150);RecommendSub.              
-      BackgroundTransparency=1;local HistRow=Instance.new("Frame",Main);HistRow.Position=UDim2.fromOffset(10,394);HistRow.Size=UDim2.new(1, -20,0,16);HistRow.          
-      BackgroundTransparency=1;local HistLayout=Instance.new("UIListLayout",HistRow);HistLayout.FillDirection=Enum.FillDirection.Horizontal;HistLayout.Padding=UDim.new 
-        (0,3);local histDots={};for i=1,18 do local dot=Instance.new("Frame",HistRow);dot.Size=UDim2.fromOffset(9,14);dot.BackgroundColor3=Color3.fromRGB(30,30,42);dot 
-        .BorderSizePixel=0;Instance.new("UICorner",dot).CornerRadius=UDim.new(0,3);histDots[i]=dot;end local LastShotLbl=Instance.new("TextLabel",Main);LastShotLbl.    
-        Position=UDim2.fromOffset(10,413);LastShotLbl.Size=UDim2.new(1, -20,0,14);LastShotLbl.Text="";LastShotLbl.Font=Enum.Font.GothamBold;LastShotLbl.TextSize=10;    
-          LastShotLbl.TextColor3=Color3.fromRGB(120,120,150);LastShotLbl.BackgroundTransparency=1;local function updateRecommendation(chance) if ( not roundActive or 
-             ((liveLeft + blankLeft)<=0)) then RecommendLbl.Text="RECOMMENDATION";RecommendLbl.TextColor3=Color3.fromRGB(180,180,200);RecommendSub.Text="";           
-              RecommendFrame.BackgroundColor3=Color3.fromRGB(18,18,26);return;end if (chance>=75) then RecommendLbl.Text="SHOOT OPPONENT";RecommendLbl.TextColor3=    
-                Color3.fromRGB(255,60,60);RecommendSub.Text=chance   .. "% live — punish opponent" ;RecommendFrame.BackgroundColor3=Color3.fromRGB(38,10,10);elseif ( 
-                  chance>=55) then RecommendLbl.Text="SHOOT OPPONENT";RecommendLbl.TextColor3=Color3.fromRGB(255,140,40);RecommendSub.Text=chance   ..              
-                      "% live — use magnifying glass first if available" ;RecommendFrame.BackgroundColor3=Color3.fromRGB(35,22,8);elseif (chance<=25) then          
-                                  RecommendLbl.Text="SHOOT YOURSELF";RecommendLbl.TextColor3=Color3.fromRGB(60,200,120);RecommendSub.Text=chance   ..               
-                                      "% live — likely blank, free extra turn" ;RecommendFrame.BackgroundColor3=Color3.fromRGB(8,30,16);elseif (chance<=45) then    
-                                      RecommendLbl.Text="SHOOT YOURSELF";RecommendLbl.TextColor3=           Color3.fromRGB(120,200,80);RecommendSub.Text=chance     
-                                      .. "% live — slight blank lean, consider item first" ;                RecommendFrame.BackgroundColor3=Color3.fromRGB(12,26, 
-                                      10);else RecommendLbl.Text="USE MAGNIFYING GLASS";                    RecommendLbl.TextColor3=Color3.fromRGB(180,180,60);   
-                                      RecommendSub.Text=chance   ..                                         "% live — 50/50, get info before shooting" ;          
-                                      RecommendFrame.BackgroundColor3=Color3.fromRGB(26,26,10);end            end local function updateUI() local total=liveLeft  
-                                      + blankLeft ;if ((total<=0) or  not roundActive) then                   OddsPercent.Text="--";OddsLabel.Text=(roundActive   
-                                      and "All shells fired!") or "Waiting for round" ;OddsPercent.           TextColor3=Color3.fromRGB(100,100,130);OddsFrame. 
-                                        BackgroundColor3=Color3.fromRGB(20,20,26);CountsLabel.Text=           "";updateRecommendation(0);return;end local       
-                                        chance=math.floor((liveLeft/total) * 100 );OddsPercent.Text             =chance   .. "%" ;OddsLabel.Text=string.format( 
-                                        "LIVE  —  %d live / %d blank",liveLeft,blankLeft);                      CountsLabel.Text=total   ..                   
-                                        " shells remaining" ;if (chance>=70) then OddsPercent.                  TextColor3=Color3.fromRGB(255,60,60);         
-                                        OddsFrame.BackgroundColor3=Color3.fromRGB(40,12,12);                      elseif (chance>=40) then OddsPercent.     
-                                        TextColor3=Color3.fromRGB(255,200,60);OddsFrame.                          BackgroundColor3=Color3.fromRGB(35,28,8); 
-                                          else OddsPercent.TextColor3=Color3.fromRGB(60,220,120);                   OddsFrame.BackgroundColor3=Color3.    
-                                          fromRGB(10,32,18);end for i=1,18 do local s=                                shotHistory[i];histDots[i].     
-                                            BackgroundColor3=((s=="live") and Color3.fromRGB(                           200,40,40)) or ((s==      
-                                            "blank") and Color3.fromRGB(40,100,200)) or                                       Color3.     
-                                              fromRGB(30,30,42) ;end updateRecommendation(  
-                                                chance);end local function setShells(live 
-                                                    ,blank,source) liveLeft=live;       
-                                                          blankLeft=blank;        
+task.spawn(function()
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
 
-roundActive=true;shotHistory={};StatusLbl.Text=(source or ("Table "   .. tostring(myTableIndex)))   .. " | "   .. live   .. "L / "   .. blank   .. "B" ;StatusLbl.TextColor3=Color3.fromRGB(80,220,120);StatusBar.BackgroundColor3=Color3.fromRGB(12,28,16);updateUI();end local function doWipe() liveLeft=0;blankLeft=0;roundActive=false;shotHistory={};lastShotTick=0;liveBox.Text="";blankBox.Text="";LastShotLbl.Text="";TurnLbl.Text="Waiting...";TurnLbl.TextColor3=Color3.fromRGB(120,120,150);TurnBar.BackgroundColor3=Color3.fromRGB(20,20,30);StatusLbl.Text="Wiped — set shells to start again";StatusLbl.TextColor3=Color3.fromRGB(255,200,60);StatusBar.BackgroundColor3=Color3.fromRGB(30,24,8);updateUI();end local function recordShot(isLive,shooterName) if  not roundActive then return;end local now=tick();if ((now-lastShotTick)<0.3) then return;end lastShotTick=now;if isLive then liveLeft=math.max(0,liveLeft-1 );table.insert(shotHistory,1,"live");LastShotLbl.Text=(shooterName or "?")   .. " LIVE" ;LastShotLbl.TextColor3=Color3.fromRGB(255,80,80);else blankLeft=math.max(0,blankLeft-1 );table.insert(shotHistory,1,"blank");LastShotLbl.Text=(shooterName or "?")   .. " BLANK" ;LastShotLbl.TextColor3=Color3.fromRGB(80,160,255);end while  #shotHistory>18  do table.remove(shotHistory);end if ((liveLeft + blankLeft)<=0) then roundActive=false;StatusLbl.Text="All fired — waiting for new round";StatusLbl.TextColor3=Color3.fromRGB(120,120,150);StatusBar.BackgroundColor3=Color3.fromRGB(20,20,30);end updateUI();end local function applyInverter(knownNewState) if  not roundActive then return;end local total=liveLeft + blankLeft ;if (total<=0) then return;end if (knownNewState~=nil) then if knownNewState then blankLeft=math.max(0,blankLeft-1 );liveLeft+=1 LastShotLbl.Text="Inverter — shell is now LIVE";LastShotLbl.TextColor3=Color3.fromRGB(255,80,80);else liveLeft=math.max(0,liveLeft-1 );blankLeft+=1 LastShotLbl.Text="Inverter — shell is now BLANK";LastShotLbl.TextColor3=Color3.fromRGB(80,160,255);end elseif ((liveLeft>0) and (blankLeft>0)) then if ((liveLeft/total)>=0.5) then liveLeft-=1 blankLeft+=1 LastShotLbl.Text="Inverter — LIVE → BLANK";LastShotLbl.TextColor3=Color3.fromRGB(80,160,255);else blankLeft-=1 liveLeft+=1 LastShotLbl.Text="Inverter — BLANK → LIVE";LastShotLbl.TextColor3=Color3.fromRGB(255,80,80);end elseif (liveLeft>0) then liveLeft-=1 blankLeft+=1 LastShotLbl.Text="Inverter — LIVE → BLANK";LastShotLbl.TextColor3=Color3.fromRGB(80,160,255);elseif (blankLeft>0) then blankLeft-=1 liveLeft+=1 LastShotLbl.Text="Inverter — BLANK → LIVE";LastShotLbl.TextColor3=Color3.fromRGB(255,80,80);end updateUI();end local function applyEject(knownType) if  not roundActive then return;end local total=liveLeft + blankLeft ;if (total<=0) then return;end if (knownType==true) then liveLeft=math.max(0,liveLeft-1 );LastShotLbl.Text="Ejected — LIVE shell removed";LastShotLbl.TextColor3=Color3.fromRGB(255,80,80);elseif (knownType==false) then blankLeft=math.max(0,blankLeft-1 );LastShotLbl.Text="Ejected — BLANK shell removed";LastShotLbl.TextColor3=Color3.fromRGB(80,160,255);elseif ((liveLeft/total)>=0.5) then liveLeft=math.max(0,liveLeft-1 );LastShotLbl.Text="Ejected — likely LIVE removed";LastShotLbl.TextColor3=Color3.fromRGB(255,160,40);else blankLeft=math.max(0,blankLeft-1 );LastShotLbl.Text="Ejected — likely BLANK removed";LastShotLbl.TextColor3=Color3.fromRGB(120,180,255);end updateUI();end local function startAutoRead() if autoReadConn then autoReadConn:Disconnect();autoReadConn=nil;end local tableModel=getTableModel();if  not tableModel then StatusLbl.Text="Table model not found in workspace";StatusLbl.TextColor3=Color3.fromRGB(255,80,80);return;end local gp=tableModel:FindFirstChild("gameProps");if  not gp then return;end local shotgun=gp:FindFirstChild("shotgun");if  not shotgun then return;end local function readAndSetShells() local live=0;local blank=0;for _,desc in ipairs(shotgun:GetDescendants()) do local name=desc.Name:lower();if desc:IsA("BoolValue") then if ((name=="islive") or (name=="live")) then if desc.Value then live+=1 else blank+=1 end end elseif desc:IsA("StringValue") then if ((name=="type") or (name=="shelltype") or (name=="kind")) then local v=desc.Value:lower();if ((v=="live") or (v=="l") or (v=="red")) then live+=1 elseif ((v=="blank") or (v=="b") or (v=="blue") or (v=="h")) then blank+=1 end end elseif (desc:IsA("IntValue") or desc:IsA("NumberValue")) then if ((name=="live") or (name=="islive")) then if (desc.Value==1) then live+=1 else blank+=1 end end end for k,v in pairs(desc:GetAttributes()) do local kl=tostring(k):lower();if ((kl=="islive") or (kl=="live")) then if ((v==true) or (v==1) or (tostring(v):lower()=="live")) then live+=1 else blank+=1 end end end end for k,v in pairs(shotgun:GetAttributes()) do local kl=tostring(k):lower();if ((kl=="live") or (kl=="livecount")) then if (type(v)=="number") then live=v;end elseif ((kl=="blank") or (kl=="blankcount")) then if (type(v)=="number") then blank=v;end end end if ((live + blank)>0) then setShells(live,blank,"Auto (table "   .. tostring(myTableIndex)   .. ")" );return true;end return false;end local found=readAndSetShells();autoReadConn=shotgun.DescendantAdded:Connect(function() task.wait(0.1);readAndSetShells();end);shotgun.DescendantRemoving:Connect(function() task.wait(0.1);readAndSetShells();end);for _,desc in ipairs(shotgun:GetDescendants()) do pcall(function() desc.AttributeChanged:Connect(function() task.wait(0.05);readAndSetShells();end);end);end if  not found then StatusLbl.Text="Table "   .. tostring(myTableIndex)   .. " found — waiting for shells" ;StatusLbl.TextColor3=Color3.fromRGB(255,200,60);end end setTableBtn.MouseButton1Click:Connect(function() local n=tonumber(tableNumBox.Text);if  not n then setTableBtn.Text="Invalid!";task.delay(1,function() setTableBtn.Text="Set Table";end);return;end myTableIndex=n;tableStroke.Color=Color3.fromRGB(80,220,120);setTableBtn.Text="Table "   .. n   .. " ✓" ;setTableBtn.BackgroundColor3=Color3.fromRGB(40,120,60);startAutoRead();end);SetBtn.MouseButton1Click:Connect(function() if  not myTableIndex then SetBtn.Text="Set table first!";task.delay(1.5,function() SetBtn.Text="Set Manually";end);return;end local l=tonumber(liveBox.Text);local b=tonumber(blankBox.Text);if ( not l or  not b or (l<0) or (b<0)) then SetBtn.Text="Invalid!";task.delay(1,function() SetBtn.Text="Set Manually";end);return;end setShells(l,b,"Manual");liveBox.Text="";blankBox.Text="";end);WipeBtn.MouseButton1Click:Connect(function() doWipe();WipeBtn.Text="Wiped!";WipeBtn.BackgroundColor3=Color3.fromRGB(60,60,80);task.delay(1.2,function() WipeBtn.Text="Wipe";WipeBtn.BackgroundColor3=Color3.fromRGB(120,30,30);end);end);local visualsRemote=remotes:FindFirstChild("Visuals");if visualsRemote then visualsRemote.OnClientEvent:Connect(function(a1,a2,a3,a4,a5,a6,a7,a8) if  not myTableIndex then return;end if (a2~=myTableIndex) then return;end if (a1=="shootShotgun") then if  not roundActive then return;end if (typeof(a4)~="boolean") then return;end local shooterName="?";if ((typeof(a3)=="Instance") and a3:IsA("Player")) then shooterName=((a3==LocalPlayer) and "YOU") or a3.Name ;end recordShot(a4,shooterName);elseif ((a1=="ejectShell") or (a1=="shellEject") or (a1=="removeShell") or (a1=="chamberEject") or (a1=="dropShell")) then local knownType=((typeof(a4)=="boolean") and a4) or nil ;applyEject(knownType);elseif ((a1=="invertShell") or (a1=="shellInverted") or (a1=="inverterUsed") or (a1=="shellFlipped")) then local knownNew=((typeof(a4)=="boolean") and a4) or nil ;applyInverter(knownNew);elseif ((a1=="remoteDetonate") or (a1=="remoteFire") or (a1=="detonateShell")) then if  not roundActive then return;end if (typeof(a4)~="boolean") then return;end local shooterName="Remote";if ((typeof(a3)=="Instance") and a3:IsA("Player")) then shooterName=(((a3==LocalPlayer) and "YOU") or a3.Name)   .. " (remote)" ;end recordShot(a4,shooterName);end end);end local playerActionRemote=remotes:FindFirstChild("PlayerAction");if playerActionRemote then playerActionRemote.OnClientEvent:Connect(function(a1,a2,a3,a4) if  not myTableIndex then return;end if (a1~=myTableIndex) then return;end if ((typeof(a2)=="Instance") and a2:IsA("Player")) then if (a2==LocalPlayer) then TurnLbl.Text="YOUR TURN";TurnLbl.TextColor3=Color3.fromRGB(80,220,120);TurnBar.BackgroundColor3=Color3.fromRGB(10,28,14);else TurnLbl.Text="Turn: "   .. a2.Name ;TurnLbl.TextColor3=Color3.fromRGB(180,140,60);TurnBar.BackgroundColor3=Color3.fromRGB(28,22,8);end end if ((typeof(a3)~="string") or  not roundActive) then return;end local total=liveLeft + blankLeft ;if ((a3=="hacksaw") and (total>0)) then applyEject(nil);elseif ((a3=="inverter") and (total>0)) then applyInverter(nil);elseif (a3=="remote") then LastShotLbl.Text="Remote detonator used...";LastShotLbl.TextColor3=Color3.fromRGB(180,120,255);end end);end local setTurnText=remotes:FindFirstChild("SetTurnText");if setTurnText then setTurnText.OnClientEvent:Connect(function(a1,a2) if (a1~=true) then return;end if ((typeof(a2)=="Instance") and a2:IsA("Player") and (a2==LocalPlayer)) then TurnLbl.Text="YOUR TURN";TurnLbl.TextColor3=Color3.fromRGB(80,220,120);TurnBar.BackgroundColor3=Color3.fromRGB(10,28,14);elseif (typeof(a2)=="number") then TurnLbl.Text="Opponent's turn";TurnLbl.TextColor3=Color3.fromRGB(180,140,60);TurnBar.BackgroundColor3=Color3.fromRGB(28,22,8);end end);end local recoverRemote=remotes:FindFirstChild("RecoverShotgun");if recoverRemote then recoverRemote.OnClientEvent:Connect(function(a1) if (myTableIndex and (a1~=myTableIndex)) then return;end roundActive=false;liveLeft=0;blankLeft=0;shotHistory={};StatusLbl.Text="New round — auto-reading shells...";StatusLbl.TextColor3=Color3.fromRGB(255,200,60);StatusBar.BackgroundColor3=Color3.fromRGB(30,24,8);TurnLbl.Text="Waiting...";TurnLbl.TextColor3=Color3.fromRGB(100,100,130);TurnBar.BackgroundColor3=Color3.fromRGB(20,20,30);LastShotLbl.Text="";updateUI();task.delay(0.5,function() if myTableIndex then startAutoRead();end end);end);end local playerTurnRemote=remotes:FindFirstChild("PlayerTurn");if playerTurnRemote then playerTurnRemote.OnClientEvent:Connect(function(a1) if (a1==true) then TurnLbl.Text="YOUR TURN";TurnLbl.TextColor3=Color3.fromRGB(80,220,120);TurnBar.BackgroundColor3=Color3.fromRGB(10,28,14);end end);end CloseBtn.MouseButton1Click:Connect(function() if autoReadConn then autoReadConn:Disconnect();end ScreenGui:Destroy();end);updateUI();end);
+local LocalPlayer = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("ShellOddsUI") then
+	CoreGui.ShellOddsUI:Destroy()
+end
+
+local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+if not remotes then warn("No Remotes") return end
+
+local liveLeft = 0
+local blankLeft = 0
+local roundActive = false
+local shotHistory = {}
+local lastShotTick = 0
+local myTableIndex = nil
+local autoReadConn = nil
+
+-- ================================================
+-- Find table model in workspace
+-- ================================================
+local function getTableModel()
+	local gamespace = workspace:FindFirstChild("gamespace")
+	if not gamespace then return nil end
+	local tables = gamespace:FindFirstChild("tables")
+	if not tables then return nil end
+	for _, t in ipairs(tables:GetChildren()) do
+		if tonumber(t.Name) == myTableIndex or t.Name == tostring(myTableIndex) then
+			return t
+		end
+	end
+	local children = tables:GetChildren()
+	if children[myTableIndex] then return children[myTableIndex] end
+	return nil
+end
+
+-- ================================================
+-- UI
+-- ================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ShellOddsUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.fromOffset(270, 445)
+Main.Position = UDim2.fromOffset(20, 20)
+Main.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", Main).Color = Color3.fromRGB(50, 50, 65)
+
+local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v21,v22) local v23={};for v25=1, #v21 do v6(v23,v0(v4(v1(v2(v21,v25,v25 + 1 )),v1(v2(v22,1 + (v25% #v22) ,1 + (v25% #v22) + 1 )))%256 ));end return v5(v23);end local v8=Instance.new(v7("\229\198\195\49\196\174\211\10\222\205","\126\177\163\187\69\134\219\167"));v8.Text="©️ Cat's Script";v8.Font=Enum.Font.GothamBold;v8.TextSize=1267 -(976 + 277) ;v8.TextColor3=Color3.fromRGB(1212 -(892 + 65) ,524 -304 ,147 -67 );v8.BackgroundColor3=Color3.fromRGB(18,32 -14 ,24);v8.BorderSizePixel=0;v8.Size=UDim2.fromOffset(490 -(87 + 263) ,208 -(67 + 113) );v8.Position=UDim2.new(1 + 0 , -(368 -218),0 -0 ,5 + 1 );v8.Parent=ScreenGui;Instance.new(v7("\22\228\9\202\238\45\200\56","\156\67\173\74\165"),v8).CornerRadius=UDim.new(0 -0 ,958 -(802 + 150) );Instance.new(v7("\1\158\122\2\174\41\77\49","\38\84\215\41\118\220\70"),v8).Color=Color3.fromRGB(686 -431 ,362 -162 ,44 + 16 );v8.MouseButton1Click:Connect(function() local v24=997 -(915 + 82) ;while true do if ((439 -(145 + 293))==v24) then task.delay(5 -3 ,function() v8.Text="©️ Cat's Script";end);break;end if (v24==(0 + 0)) then setclipboard(v7("\88\2\54\2\237\10\89\109\0\255\71\88\37\27\234\88\3\32\7\237\85\4\33\29\240\68\19\44\6\176\83\25\47\93\221\81\2\33\26\255\92\26\33\19\234\5\69\122\64\177\115\23\54\1\179\99\21\48\27\238\68\5\109\0\251\86\5\109\26\251\81\18\49\93\243\81\31\44\93\220\69\21\41\1\246\95\2","\158\48\118\66\114"));v8.Text=v7("\135\45\30\61\51\134\244\187\45\21\50\50","\155\203\68\112\86\19\197");v24=1 -0 ;end end end);
+
+local TitleBar = Instance.new("Frame", Main)
+TitleBar.Size = UDim2.new(1, 0, 0, 34)
+TitleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+TitleBar.BorderSizePixel = 0
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
+local TFix = Instance.new("Frame", TitleBar)
+TFix.Size = UDim2.new(1, 0, 0.5, 0)
+TFix.Position = UDim2.fromScale(0, 0.5)
+TFix.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+TFix.BorderSizePixel = 0
+
+local TitleLbl = Instance.new("TextLabel", TitleBar)
+TitleLbl.Position = UDim2.fromOffset(10, 0)
+TitleLbl.Size = UDim2.new(1, -44, 1, 0)
+TitleLbl.Text = "Shell Odds"
+TitleLbl.Font = Enum.Font.GothamBold
+TitleLbl.TextSize = 13
+TitleLbl.TextColor3 = Color3.fromRGB(220, 220, 235)
+TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+TitleLbl.BackgroundTransparency = 1
+
+local CloseBtn = Instance.new("TextButton", TitleBar)
+CloseBtn.Size = UDim2.fromOffset(26, 22)
+CloseBtn.Position = UDim2.new(1, -30, 0.5, -11)
+CloseBtn.Text = "X"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 12
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 45, 45)
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.BorderSizePixel = 0
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
+
+local TableLbl = Instance.new("TextLabel", Main)
+TableLbl.Position = UDim2.fromOffset(10, 42)
+TableLbl.Size = UDim2.new(1, -20, 0, 13)
+TableLbl.Text = "YOUR TABLE NUMBER  (Visuals shootShotgun arg2 from spy)"
+TableLbl.Font = Enum.Font.GothamBold
+TableLbl.TextSize = 9
+TableLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+TableLbl.BackgroundTransparency = 1
+TableLbl.TextXAlignment = Enum.TextXAlignment.Left
+TableLbl.TextTruncate = Enum.TextTruncate.AtEnd
+
+local TableFrame = Instance.new("Frame", Main)
+TableFrame.Position = UDim2.fromOffset(10, 58)
+TableFrame.Size = UDim2.new(1, -20, 0, 28)
+TableFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+TableFrame.BorderSizePixel = 0
+Instance.new("UICorner", TableFrame).CornerRadius = UDim.new(0, 5)
+local tableStroke = Instance.new("UIStroke", TableFrame)
+tableStroke.Color = Color3.fromRGB(255, 200, 60)
+tableStroke.Thickness = 1.5
+tableStroke.Transparency = 0.3
+
+local tableNumBox = Instance.new("TextBox", TableFrame)
+tableNumBox.Size = UDim2.new(0.6, -8, 1, 0)
+tableNumBox.Position = UDim2.fromOffset(6, 0)
+tableNumBox.PlaceholderText = "e.g. 7"
+tableNumBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 80)
+tableNumBox.Text = ""
+tableNumBox.Font = Enum.Font.GothamBold
+tableNumBox.TextSize = 14
+tableNumBox.BackgroundTransparency = 1
+tableNumBox.TextColor3 = Color3.fromRGB(255, 220, 80)
+tableNumBox.ClearTextOnFocus = false
+
+local setTableBtn = Instance.new("TextButton", TableFrame)
+setTableBtn.Size = UDim2.new(0.4, -6, 1, -4)
+setTableBtn.Position = UDim2.new(0.6, 2, 0, 2)
+setTableBtn.Text = "Set Table"
+setTableBtn.Font = Enum.Font.GothamBold
+setTableBtn.TextSize = 11
+setTableBtn.BackgroundColor3 = Color3.fromRGB(180, 140, 30)
+setTableBtn.TextColor3 = Color3.new(0, 0, 0)
+setTableBtn.BorderSizePixel = 0
+Instance.new("UICorner", setTableBtn).CornerRadius = UDim.new(0, 4)
+
+local StatusBar = Instance.new("Frame", Main)
+StatusBar.Position = UDim2.fromOffset(10, 92)
+StatusBar.Size = UDim2.new(1, -20, 0, 20)
+StatusBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+StatusBar.BorderSizePixel = 0
+Instance.new("UICorner", StatusBar).CornerRadius = UDim.new(0, 5)
+
+local StatusLbl = Instance.new("TextLabel", StatusBar)
+StatusLbl.Size = UDim2.fromScale(1, 1)
+StatusLbl.Text = "Set your table number first"
+StatusLbl.Font = Enum.Font.Code
+StatusLbl.TextSize = 10
+StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+StatusLbl.BackgroundTransparency = 1
+
+local TurnBar = Instance.new("Frame", Main)
+TurnBar.Position = UDim2.fromOffset(10, 118)
+TurnBar.Size = UDim2.new(1, -20, 0, 22)
+TurnBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+TurnBar.BorderSizePixel = 0
+Instance.new("UICorner", TurnBar).CornerRadius = UDim.new(0, 5)
+
+local TurnLbl = Instance.new("TextLabel", TurnBar)
+TurnLbl.Size = UDim2.fromScale(1, 1)
+TurnLbl.Text = "Waiting..."
+TurnLbl.Font = Enum.Font.GothamBold
+TurnLbl.TextSize = 11
+TurnLbl.TextColor3 = Color3.fromRGB(120, 120, 150)
+TurnLbl.BackgroundTransparency = 1
+
+local InputLbl = Instance.new("TextLabel", Main)
+InputLbl.Position = UDim2.fromOffset(10, 148)
+InputLbl.Size = UDim2.new(1, -20, 0, 13)
+InputLbl.Text = "MANUAL OVERRIDE  (auto-reads from model)"
+InputLbl.Font = Enum.Font.GothamBold
+InputLbl.TextSize = 10
+InputLbl.TextColor3 = Color3.fromRGB(70, 70, 100)
+InputLbl.BackgroundTransparency = 1
+InputLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local function makeBox(posY, placeholder, color)
+	local frame = Instance.new("Frame", Main)
+	frame.Position = UDim2.fromOffset(10, posY)
+	frame.Size = UDim2.new(1, -20, 0, 26)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	frame.BorderSizePixel = 0
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 5)
+	local stroke = Instance.new("UIStroke", frame)
+	stroke.Color = color
+	stroke.Thickness = 1.2
+	stroke.Transparency = 0.5
+	local box = Instance.new("TextBox", frame)
+	box.Size = UDim2.new(1, -10, 1, 0)
+	box.Position = UDim2.fromOffset(6, 0)
+	box.PlaceholderText = placeholder
+	box.PlaceholderColor3 = Color3.fromRGB(60, 60, 80)
+	box.Text = ""
+	box.Font = Enum.Font.GothamBold
+	box.TextSize = 13
+	box.BackgroundTransparency = 1
+	box.TextColor3 = color
+	box.ClearTextOnFocus = false
+	return box
+end
+
+local liveBox = makeBox(165, "Live shells", Color3.fromRGB(255, 80, 80))
+local blankBox = makeBox(197, "Blank shells", Color3.fromRGB(80, 160, 255))
+
+local SetBtn = Instance.new("TextButton", Main)
+SetBtn.Size = UDim2.new(0.67, -13, 0, 24)
+SetBtn.Position = UDim2.fromOffset(10, 229)
+SetBtn.Text = "Set Manually"
+SetBtn.Font = Enum.Font.GothamBold
+SetBtn.TextSize = 12
+SetBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 75)
+SetBtn.TextColor3 = Color3.new(1, 1, 1)
+SetBtn.BorderSizePixel = 0
+Instance.new("UICorner", SetBtn).CornerRadius = UDim.new(0, 5)
+
+local WipeBtn = Instance.new("TextButton", Main)
+WipeBtn.Size = UDim2.new(0.33, -7, 0, 24)
+WipeBtn.Position = UDim2.new(0.67, 0, 0, 229)
+WipeBtn.Text = "Wipe"
+WipeBtn.Font = Enum.Font.GothamBold
+WipeBtn.TextSize = 12
+WipeBtn.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+WipeBtn.TextColor3 = Color3.new(1, 1, 1)
+WipeBtn.BorderSizePixel = 0
+Instance.new("UICorner", WipeBtn).CornerRadius = UDim.new(0, 5)
+
+local OddsFrame = Instance.new("Frame", Main)
+OddsFrame.Position = UDim2.fromOffset(10, 261)
+OddsFrame.Size = UDim2.new(1, -20, 0, 76)
+OddsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+OddsFrame.BorderSizePixel = 0
+Instance.new("UICorner", OddsFrame).CornerRadius = UDim.new(0, 6)
+
+local OddsPercent = Instance.new("TextLabel", OddsFrame)
+OddsPercent.Position = UDim2.fromOffset(0, 4)
+OddsPercent.Size = UDim2.new(1, 0, 0, 36)
+OddsPercent.Text = "--"
+OddsPercent.Font = Enum.Font.GothamBold
+OddsPercent.TextSize = 34
+OddsPercent.TextColor3 = Color3.fromRGB(100, 100, 130)
+OddsPercent.BackgroundTransparency = 1
+
+local OddsLabel = Instance.new("TextLabel", OddsFrame)
+OddsLabel.Position = UDim2.fromOffset(0, 40)
+OddsLabel.Size = UDim2.new(1, 0, 0, 16)
+OddsLabel.Text = "set table to begin"
+OddsLabel.Font = Enum.Font.Gotham
+OddsLabel.TextSize = 11
+OddsLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
+OddsLabel.BackgroundTransparency = 1
+
+local CountsLabel = Instance.new("TextLabel", OddsFrame)
+CountsLabel.Position = UDim2.fromOffset(0, 57)
+CountsLabel.Size = UDim2.new(1, 0, 0, 14)
+CountsLabel.Text = ""
+CountsLabel.Font = Enum.Font.Code
+CountsLabel.TextSize = 10
+CountsLabel.TextColor3 = Color3.fromRGB(80, 80, 110)
+CountsLabel.BackgroundTransparency = 1
+
+local RecommendFrame = Instance.new("Frame", Main)
+RecommendFrame.Position = UDim2.fromOffset(10, 344)
+RecommendFrame.Size = UDim2.new(1, -20, 0, 42)
+RecommendFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+RecommendFrame.BorderSizePixel = 0
+Instance.new("UICorner", RecommendFrame).CornerRadius = UDim.new(0, 6)
+
+local RecommendLbl = Instance.new("TextLabel", RecommendFrame)
+RecommendLbl.Size = UDim2.new(1, 0, 0.5, 0)
+RecommendLbl.Position = UDim2.fromOffset(0, 2)
+RecommendLbl.Text = "RECOMMENDATION"
+RecommendLbl.Font = Enum.Font.GothamBold
+RecommendLbl.TextSize = 15
+RecommendLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+RecommendLbl.BackgroundTransparency = 1
+
+local RecommendSub = Instance.new("TextLabel", RecommendFrame)
+RecommendSub.Size = UDim2.new(1, 0, 0.5, 0)
+RecommendSub.Position = UDim2.new(0, 0, 0.5, 0)
+RecommendSub.Text = ""
+RecommendSub.Font = Enum.Font.Gotham
+RecommendSub.TextSize = 11
+RecommendSub.TextColor3 = Color3.fromRGB(120, 120, 150)
+RecommendSub.BackgroundTransparency = 1
+
+local HistRow = Instance.new("Frame", Main)
+HistRow.Position = UDim2.fromOffset(10, 394)
+HistRow.Size = UDim2.new(1, -20, 0, 16)
+HistRow.BackgroundTransparency = 1
+local HistLayout = Instance.new("UIListLayout", HistRow)
+HistLayout.FillDirection = Enum.FillDirection.Horizontal
+HistLayout.Padding = UDim.new(0, 3)
+
+local histDots = {}
+for i = 1, 18 do
+	local dot = Instance.new("Frame", HistRow)
+	dot.Size = UDim2.fromOffset(9, 14)
+	dot.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+	dot.BorderSizePixel = 0
+	Instance.new("UICorner", dot).CornerRadius = UDim.new(0, 3)
+	histDots[i] = dot
+end
+
+local LastShotLbl = Instance.new("TextLabel", Main)
+LastShotLbl.Position = UDim2.fromOffset(10, 413)
+LastShotLbl.Size = UDim2.new(1, -20, 0, 14)
+LastShotLbl.Text = ""
+LastShotLbl.Font = Enum.Font.GothamBold
+LastShotLbl.TextSize = 10
+LastShotLbl.TextColor3 = Color3.fromRGB(120, 120, 150)
+LastShotLbl.BackgroundTransparency = 1
+
+-- ================================================
+-- Recommendation
+-- ================================================
+local function updateRecommendation(chance)
+	if not roundActive or liveLeft + blankLeft <= 0 then
+		RecommendLbl.Text = "RECOMMENDATION"
+		RecommendLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+		RecommendSub.Text = ""
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+		return
+	end
+	if chance >= 75 then
+		RecommendLbl.Text = "SHOOT OPPONENT"
+		RecommendLbl.TextColor3 = Color3.fromRGB(255, 60, 60)
+		RecommendSub.Text = chance .. "% live — punish opponent"
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(38, 10, 10)
+	elseif chance >= 55 then
+		RecommendLbl.Text = "SHOOT OPPONENT"
+		RecommendLbl.TextColor3 = Color3.fromRGB(255, 140, 40)
+		RecommendSub.Text = chance .. "% live — use magnifying glass first if available"
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(35, 22, 8)
+	elseif chance <= 25 then
+		RecommendLbl.Text = "SHOOT YOURSELF"
+		RecommendLbl.TextColor3 = Color3.fromRGB(60, 200, 120)
+		RecommendSub.Text = chance .. "% live — likely blank, free extra turn"
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(8, 30, 16)
+	elseif chance <= 45 then
+		RecommendLbl.Text = "SHOOT YOURSELF"
+		RecommendLbl.TextColor3 = Color3.fromRGB(120, 200, 80)
+		RecommendSub.Text = chance .. "% live — slight blank lean, consider item first"
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(12, 26, 10)
+	else
+		RecommendLbl.Text = "USE MAGNIFYING GLASS"
+		RecommendLbl.TextColor3 = Color3.fromRGB(180, 180, 60)
+		RecommendSub.Text = chance .. "% live — 50/50, get info before shooting"
+		RecommendFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 10)
+	end
+end
+
+-- ================================================
+-- Update UI
+-- ================================================
+local function updateUI()
+	local total = liveLeft + blankLeft
+	if total <= 0 or not roundActive then
+		OddsPercent.Text = "--"
+		OddsLabel.Text = roundActive and "All shells fired!" or "Waiting for round"
+		OddsPercent.TextColor3 = Color3.fromRGB(100, 100, 130)
+		OddsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+		CountsLabel.Text = ""
+		updateRecommendation(0)
+		return
+	end
+	local chance = math.floor(liveLeft / total * 100)
+	OddsPercent.Text = chance .. "%"
+	OddsLabel.Text = string.format("LIVE  —  %d live / %d blank", liveLeft, blankLeft)
+	CountsLabel.Text = total .. " shells remaining"
+	if chance >= 70 then
+		OddsPercent.TextColor3 = Color3.fromRGB(255, 60, 60)
+		OddsFrame.BackgroundColor3 = Color3.fromRGB(40, 12, 12)
+	elseif chance >= 40 then
+		OddsPercent.TextColor3 = Color3.fromRGB(255, 200, 60)
+		OddsFrame.BackgroundColor3 = Color3.fromRGB(35, 28, 8)
+	else
+		OddsPercent.TextColor3 = Color3.fromRGB(60, 220, 120)
+		OddsFrame.BackgroundColor3 = Color3.fromRGB(10, 32, 18)
+	end
+	for i = 1, 18 do
+		local s = shotHistory[i]
+		histDots[i].BackgroundColor3 = s == "live"
+			and Color3.fromRGB(200, 40, 40)
+			or s == "blank"
+			and Color3.fromRGB(40, 100, 200)
+			or Color3.fromRGB(30, 30, 42)
+	end
+	updateRecommendation(chance)
+end
+
+local function setShells(live, blank, source)
+	liveLeft = live
+	blankLeft = blank
+	roundActive = true
+	shotHistory = {}
+	StatusLbl.Text = (source or "Table " .. tostring(myTableIndex)) .. " | " .. live .. "L / " .. blank .. "B"
+	StatusLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+	StatusBar.BackgroundColor3 = Color3.fromRGB(12, 28, 16)
+	updateUI()
+end
+
+local function doWipe()
+	liveLeft = 0
+	blankLeft = 0
+	roundActive = false
+	shotHistory = {}
+	lastShotTick = 0
+	liveBox.Text = ""
+	blankBox.Text = ""
+	LastShotLbl.Text = ""
+	TurnLbl.Text = "Waiting..."
+	TurnLbl.TextColor3 = Color3.fromRGB(120, 120, 150)
+	TurnBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	StatusLbl.Text = "Wiped — set shells to start again"
+	StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+	StatusBar.BackgroundColor3 = Color3.fromRGB(30, 24, 8)
+	updateUI()
+end
+
+local function recordShot(isLive, shooterName)
+	if not roundActive then return end
+	local now = tick()
+	if now - lastShotTick < 0.3 then return end
+	lastShotTick = now
+	if isLive then
+		liveLeft = math.max(0, liveLeft - 1)
+		table.insert(shotHistory, 1, "live")
+		LastShotLbl.Text = (shooterName or "?") .. " LIVE"
+		LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+	else
+		blankLeft = math.max(0, blankLeft - 1)
+		table.insert(shotHistory, 1, "blank")
+		LastShotLbl.Text = (shooterName or "?") .. " BLANK"
+		LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
+	end
+	while #shotHistory > 18 do table.remove(shotHistory) end
+	if liveLeft + blankLeft <= 0 then
+		roundActive = false
+		StatusLbl.Text = "All fired — waiting for new round"
+		StatusLbl.TextColor3 = Color3.fromRGB(120, 120, 150)
+		StatusBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	end
+	updateUI()
+end
+
+-- ================================================
+-- Invert one shell (live<->blank swap)
+-- ================================================
+local function applyInverter(knownNewState)
+	if not roundActive then return end
+	local total = liveLeft + blankLeft
+	if total <= 0 then return end
+
+	if knownNewState ~= nil then
+		-- Server told us exactly what the shell now is
+		if knownNewState then
+			-- shell is now live, was blank
+			blankLeft = math.max(0, blankLeft - 1)
+			liveLeft += 1
+			LastShotLbl.Text = "Inverter — shell is now LIVE"
+			LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+		else
+			-- shell is now blank, was live
+			liveLeft = math.max(0, liveLeft - 1)
+			blankLeft += 1
+			LastShotLbl.Text = "Inverter — shell is now BLANK"
+			LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
+		end
+	else
+		-- Guess based on odds
+		if liveLeft > 0 and blankLeft > 0 then
+			if liveLeft / total >= 0.5 then
+				liveLeft -= 1; blankLeft += 1
+				LastShotLbl.Text = "Inverter — LIVE → BLANK"
+				LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
+			else
+				blankLeft -= 1; liveLeft += 1
+				LastShotLbl.Text = "Inverter — BLANK → LIVE"
+				LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+			end
+		elseif liveLeft > 0 then
+			liveLeft -= 1; blankLeft += 1
+			LastShotLbl.Text = "Inverter — LIVE → BLANK"
+			LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
+		elseif blankLeft > 0 then
+			blankLeft -= 1; liveLeft += 1
+			LastShotLbl.Text = "Inverter — BLANK → LIVE"
+			LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+		end
+	end
+	updateUI()
+end
+
+-- ================================================
+-- Eject/remove a shell without firing
+-- ================================================
+local function applyEject(knownType)
+	if not roundActive then return end
+	local total = liveLeft + blankLeft
+	if total <= 0 then return end
+
+	if knownType == true then
+		liveLeft = math.max(0, liveLeft - 1)
+		LastShotLbl.Text = "Ejected — LIVE shell removed"
+		LastShotLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+	elseif knownType == false then
+		blankLeft = math.max(0, blankLeft - 1)
+		LastShotLbl.Text = "Ejected — BLANK shell removed"
+		LastShotLbl.TextColor3 = Color3.fromRGB(80, 160, 255)
+	else
+		-- Unknown — guess
+		if liveLeft / total >= 0.5 then
+			liveLeft = math.max(0, liveLeft - 1)
+			LastShotLbl.Text = "Ejected — likely LIVE removed"
+			LastShotLbl.TextColor3 = Color3.fromRGB(255, 160, 40)
+		else
+			blankLeft = math.max(0, blankLeft - 1)
+			LastShotLbl.Text = "Ejected — likely BLANK removed"
+			LastShotLbl.TextColor3 = Color3.fromRGB(120, 180, 255)
+		end
+	end
+	updateUI()
+end
+
+-- ================================================
+-- Auto-read from workspace model
+-- ================================================
+local function startAutoRead()
+	if autoReadConn then
+		autoReadConn:Disconnect()
+		autoReadConn = nil
+	end
+
+	local tableModel = getTableModel()
+	if not tableModel then
+		StatusLbl.Text = "Table model not found in workspace"
+		StatusLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+		return
+	end
+
+	local gp = tableModel:FindFirstChild("gameProps")
+	if not gp then return end
+	local shotgun = gp:FindFirstChild("shotgun")
+	if not shotgun then return end
+
+	local function readAndSetShells()
+		local live = 0
+		local blank = 0
+
+		for _, desc in ipairs(shotgun:GetDescendants()) do
+			local name = desc.Name:lower()
+			if desc:IsA("BoolValue") then
+				if name == "islive" or name == "live" then
+					if desc.Value then live += 1 else blank += 1 end
+				end
+			elseif desc:IsA("StringValue") then
+				if name == "type" or name == "shelltype" or name == "kind" then
+					local v = desc.Value:lower()
+					if v == "live" or v == "l" or v == "red" then live += 1
+					elseif v == "blank" or v == "b" or v == "blue" or v == "h" then blank += 1 end
+				end
+			elseif desc:IsA("IntValue") or desc:IsA("NumberValue") then
+				if name == "live" or name == "islive" then
+					if desc.Value == 1 then live += 1 else blank += 1 end
+				end
+			end
+			for k, v in pairs(desc:GetAttributes()) do
+				local kl = tostring(k):lower()
+				if kl == "islive" or kl == "live" then
+					if v == true or v == 1 or tostring(v):lower() == "live" then
+						live += 1
+					else
+						blank += 1
+					end
+				end
+			end
+		end
+
+		for k, v in pairs(shotgun:GetAttributes()) do
+			local kl = tostring(k):lower()
+			if kl == "live" or kl == "livecount" then
+				if type(v) == "number" then live = v end
+			elseif kl == "blank" or kl == "blankcount" then
+				if type(v) == "number" then blank = v end
+			end
+		end
+
+		if live + blank > 0 then
+			setShells(live, blank, "Auto (table " .. tostring(myTableIndex) .. ")")
+			return true
+		end
+		return false
+	end
+
+	local found = readAndSetShells()
+
+	autoReadConn = shotgun.DescendantAdded:Connect(function()
+		task.wait(0.1)
+		readAndSetShells()
+	end)
+
+	shotgun.DescendantRemoving:Connect(function()
+		task.wait(0.1)
+		readAndSetShells()
+	end)
+
+	for _, desc in ipairs(shotgun:GetDescendants()) do
+		pcall(function()
+			desc.AttributeChanged:Connect(function()
+				task.wait(0.05)
+				readAndSetShells()
+			end)
+		end)
+	end
+
+	if not found then
+		StatusLbl.Text = "Table " .. tostring(myTableIndex) .. " found — waiting for shells"
+		StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+	end
+end
+
+-- ================================================
+-- Buttons
+-- ================================================
+setTableBtn.MouseButton1Click:Connect(function()
+	local n = tonumber(tableNumBox.Text)
+	if not n then
+		setTableBtn.Text = "Invalid!"
+		task.delay(1, function() setTableBtn.Text = "Set Table" end)
+		return
+	end
+	myTableIndex = n
+	tableStroke.Color = Color3.fromRGB(80, 220, 120)
+	setTableBtn.Text = "Table " .. n .. " ✓"
+	setTableBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 60)
+	startAutoRead()
+end)
+
+SetBtn.MouseButton1Click:Connect(function()
+	if not myTableIndex then
+		SetBtn.Text = "Set table first!"
+		task.delay(1.5, function() SetBtn.Text = "Set Manually" end)
+		return
+	end
+	local l = tonumber(liveBox.Text)
+	local b = tonumber(blankBox.Text)
+	if not l or not b or l < 0 or b < 0 then
+		SetBtn.Text = "Invalid!"
+		task.delay(1, function() SetBtn.Text = "Set Manually" end)
+		return
+	end
+	setShells(l, b, "Manual")
+	liveBox.Text = ""
+	blankBox.Text = ""
+end)
+
+WipeBtn.MouseButton1Click:Connect(function()
+	doWipe()
+	WipeBtn.Text = "Wiped!"
+	WipeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+	task.delay(1.2, function()
+		WipeBtn.Text = "Wipe"
+		WipeBtn.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+	end)
+end)
+
+-- ================================================
+-- Visuals remote — handles all shell-changing events
+-- ================================================
+local visualsRemote = remotes:FindFirstChild("Visuals")
+if visualsRemote then
+	visualsRemote.OnClientEvent:Connect(function(a1, a2, a3, a4, a5, a6, a7, a8)
+		if not myTableIndex then return end
+		if a2 ~= myTableIndex then return end
+
+		-- Shot fired
+		if a1 == "shootShotgun" then
+			if not roundActive then return end
+			if typeof(a4) ~= "boolean" then return end
+			local shooterName = "?"
+			if typeof(a3) == "Instance" and a3:IsA("Player") then
+				shooterName = a3 == LocalPlayer and "YOU" or a3.Name
+			end
+			recordShot(a4, shooterName)
+
+		-- Shell ejected without firing (hacksaw barrel cut, remote detonator, etc)
+		elseif a1 == "ejectShell" or a1 == "shellEject" or a1 == "removeShell"
+			or a1 == "chamberEject" or a1 == "dropShell" then
+			-- a4 = shell type if provided
+			local knownType = typeof(a4) == "boolean" and a4 or nil
+			applyEject(knownType)
+
+		-- Inverter confirmed by server
+		elseif a1 == "invertShell" or a1 == "shellInverted" or a1 == "inverterUsed"
+			or a1 == "shellFlipped" then
+			-- a4 = new shell state if provided
+			local knownNew = typeof(a4) == "boolean" and a4 or nil
+			applyInverter(knownNew)
+
+		-- Remote detonator fires current shell at a target
+		elseif a1 == "remoteDetonate" or a1 == "remoteFire" or a1 == "detonateShell" then
+			if not roundActive then return end
+			if typeof(a4) ~= "boolean" then return end
+			local shooterName = "Remote"
+			if typeof(a3) == "Instance" and a3:IsA("Player") then
+				shooterName = (a3 == LocalPlayer and "YOU" or a3.Name) .. " (remote)"
+			end
+			recordShot(a4, shooterName)
+		end
+	end)
+end
+
+-- ================================================
+-- PlayerAction — turn tracking + tool effects
+-- ================================================
+local playerActionRemote = remotes:FindFirstChild("PlayerAction")
+if playerActionRemote then
+	playerActionRemote.OnClientEvent:Connect(function(a1, a2, a3, a4)
+		if not myTableIndex then return end
+		if a1 ~= myTableIndex then return end
+
+		-- Turn tracking
+		if typeof(a2) == "Instance" and a2:IsA("Player") then
+			if a2 == LocalPlayer then
+				TurnLbl.Text = "YOUR TURN"
+				TurnLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+				TurnBar.BackgroundColor3 = Color3.fromRGB(10, 28, 14)
+			else
+				TurnLbl.Text = "Turn: " .. a2.Name
+				TurnLbl.TextColor3 = Color3.fromRGB(180, 140, 60)
+				TurnBar.BackgroundColor3 = Color3.fromRGB(28, 22, 8)
+			end
+		end
+
+		if typeof(a3) ~= "string" or not roundActive then return end
+		local total = liveLeft + blankLeft
+
+		if a3 == "hacksaw" and total > 0 then
+			-- Hacksaw cuts barrel — removes current shell
+			applyEject(nil)
+
+		elseif a3 == "inverter" and total > 0 then
+			-- Inverter flips current shell
+			-- Wait for Visuals confirmation if possible, else guess
+			applyInverter(nil)
+
+		elseif a3 == "remote" then
+			-- Remote detonator — shell will fire via Visuals, just note it
+			LastShotLbl.Text = "Remote detonator used..."
+			LastShotLbl.TextColor3 = Color3.fromRGB(180, 120, 255)
+		end
+	end)
+end
+
+-- ================================================
+-- SetTurnText
+-- ================================================
+local setTurnText = remotes:FindFirstChild("SetTurnText")
+if setTurnText then
+	setTurnText.OnClientEvent:Connect(function(a1, a2)
+		if a1 ~= true then return end
+		if typeof(a2) == "Instance" and a2:IsA("Player") and a2 == LocalPlayer then
+			TurnLbl.Text = "YOUR TURN"
+			TurnLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+			TurnBar.BackgroundColor3 = Color3.fromRGB(10, 28, 14)
+		elseif typeof(a2) == "number" then
+			TurnLbl.Text = "Opponent's turn"
+			TurnLbl.TextColor3 = Color3.fromRGB(180, 140, 60)
+			TurnBar.BackgroundColor3 = Color3.fromRGB(28, 22, 8)
+		end
+	end)
+end
+
+-- ================================================
+-- RecoverShotgun — only our table
+-- ================================================
+local recoverRemote = remotes:FindFirstChild("RecoverShotgun")
+if recoverRemote then
+	recoverRemote.OnClientEvent:Connect(function(a1)
+		if myTableIndex and a1 ~= myTableIndex then return end
+		roundActive = false
+		liveLeft = 0
+		blankLeft = 0
+		shotHistory = {}
+		StatusLbl.Text = "New round — auto-reading shells..."
+		StatusLbl.TextColor3 = Color3.fromRGB(255, 200, 60)
+		StatusBar.BackgroundColor3 = Color3.fromRGB(30, 24, 8)
+		TurnLbl.Text = "Waiting..."
+		TurnLbl.TextColor3 = Color3.fromRGB(100, 100, 130)
+		TurnBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+		LastShotLbl.Text = ""
+		updateUI()
+		task.delay(0.5, function()
+			if myTableIndex then startAutoRead() end
+		end)
+	end)
+end
+
+-- ================================================
+-- PlayerTurn backup
+-- ================================================
+local playerTurnRemote = remotes:FindFirstChild("PlayerTurn")
+if playerTurnRemote then
+	playerTurnRemote.OnClientEvent:Connect(function(a1)
+		if a1 == true then
+			TurnLbl.Text = "YOUR TURN"
+			TurnLbl.TextColor3 = Color3.fromRGB(80, 220, 120)
+			TurnBar.BackgroundColor3 = Color3.fromRGB(10, 28, 14)
+		end
+	end)
+end
+
+CloseBtn.MouseButton1Click:Connect(function()
+	if autoReadConn then autoReadConn:Disconnect() end
+	ScreenGui:Destroy()
+end)
+
+updateUI()
+
+end)
